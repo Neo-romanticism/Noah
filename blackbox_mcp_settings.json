@@ -1,0 +1,26 @@
+{
+  "mcp": {
+    "servers": {
+      "github.com/JetBrains/mcp-jetbrains": {
+        "command": "npx",
+        "args": ["-y", "@jetbrains/mcp-proxy"]
+      },
+      "github.com/modelcontextprotocol/servers/tree/main/src/git": {
+        "command": "uvx",
+        "args": ["mcp-server-git"]
+      },
+      "github.com/postmanlabs/postman-mcp-server": {
+        "command": "npx",
+        "args": ["-y", "@postman/postman-mcp-server", "--minimal", "--region us"],
+        "env": {
+          "POSTMAN_API_KEY": "${input:postman-api-key}"
+        }
+      },
+      "github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+      }
+    }
+  }
+}
+
