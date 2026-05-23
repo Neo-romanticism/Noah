@@ -1,0 +1,27 @@
+/* Noah — Renderer Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+#scene-container {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+}
+
+/* Prevent text selection */
+body,
+canvas {
+  -webkit-user-select: none;
+  user-select: none;
+}
