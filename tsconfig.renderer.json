@@ -2,8 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "dist/renderer",
+    "rootDir": "src",
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*"]
+  "include": ["src/renderer/", "src/shared/"]
 }
