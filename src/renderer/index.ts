@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
-import { ramUsageColor, cpuTempColor } from '../shared/utils/sensory.js';
+import { ramUsageColor, cpuTempColor, deriveWeather, weatherColor } from '../shared/utils/sensory.js';
 
 
 const container = document.getElementById('scene-container');
@@ -25,6 +25,13 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 container.appendChild(renderer.domElement);
 
 // Basic lighting
+// Background plane — reacts to system weather
+const bgGeometry = new THREE.PlaneGeometry(20, 20);
+const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
+const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
+bgPlane.position.set(0, 0, -1); // behind everything
+scene.add(bgPlane);
+
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
@@ -102,6 +109,10 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   // Update temperature dot
   const temp = metrics.cpuTemp;
   tempDotMaterial.color.set(cpuTempColor(temp));
+
+  // Update background weather tint
+  const weather = deriveWeather(metrics);
+  bgMaterial.color.set(weatherColor(weather));
 
   // Log process count
   console.log(`Running processes: ${metrics.processes.length}`);

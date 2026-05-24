@@ -5,6 +5,8 @@ import {
   ramUsageColor,
   translateCpuTemp,
   cpuTempColor,
+  deriveWeather,
+  weatherColor,
 } from '../../src/shared/utils/sensory.js';
 
 describe('sensory translation', () => {
@@ -136,6 +138,35 @@ describe('sensory translation', () => {
     it('returns red for critical temp', () => {
       expect(cpuTempColor(81)).toBe('#ef4444');
       expect(cpuTempColor(100)).toBe('#ef4444');
+    });
+  });
+
+  describe('deriveWeather', () => {
+    it('returns sunny when all metrics comfortable', () => {
+      expect(deriveWeather({ cpuLoad: 10, ramUsage: 20, cpuTemp: 40, uptime: 0, processes: [] })).toBe('sunny');
+    });
+
+    it('returns cloudy when one metric warm', () => {
+      expect(deriveWeather({ cpuLoad: 65, ramUsage: 20, cpuTemp: 40, uptime: 0, processes: [] })).toBe('cloudy');
+    });
+
+    it('returns rainy when two metrics warm', () => {
+      expect(deriveWeather({ cpuLoad: 65, ramUsage: 65, cpuTemp: 40, uptime: 0, processes: [] })).toBe('rainy');
+    });
+
+    it('returns stormy when any metric critical', () => {
+      expect(deriveWeather({ cpuLoad: 90, ramUsage: 20, cpuTemp: 40, uptime: 0, processes: [] })).toBe('stormy');
+      expect(deriveWeather({ cpuLoad: 10, ramUsage: 85, cpuTemp: 40, uptime: 0, processes: [] })).toBe('stormy');
+      expect(deriveWeather({ cpuLoad: 10, ramUsage: 20, cpuTemp: 85, uptime: 0, processes: [] })).toBe('stormy');
+    });
+  });
+
+  describe('weatherColor', () => {
+    it('returns correct hex for each weather', () => {
+      expect(weatherColor('sunny')).toBe('#87ceeb');
+      expect(weatherColor('cloudy')).toBe('#b0c4de');
+      expect(weatherColor('rainy')).toBe('#708090');
+      expect(weatherColor('stormy')).toBe('#2f4f4f');
     });
   });
 });

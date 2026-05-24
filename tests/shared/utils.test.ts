@@ -61,6 +61,7 @@ describe('shared/utils', () => {
       expect(state.version).toBe(1);
       expect(state.totalOnlineTime).toBe(0);
       expect(state.totalOfflineTime).toBe(0);
+      expect(state.systemWeather).toBe('sunny');
     });
 
     it('sets lastSeen and sessionStart to a recent timestamp', () => {

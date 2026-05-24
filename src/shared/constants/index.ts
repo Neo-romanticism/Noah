@@ -92,12 +92,16 @@ export const CPU_LOAD_HOT_MAX = 85;
 
 // ── Memory (RAM) severity thresholds
 export const RAM_USAGE_LIGHT_MAX = 50;
+export const RAM_USAGE_WARM_MAX = 60;
 export const RAM_USAGE_HEAVY_MAX = 80;
 
 // ── CPU temperature thresholds (°C)
 export const CPU_TEMP_NORMAL_MAX = 60;
 export const CPU_TEMP_WARNING_MAX = 80;
 
+// ── Weather thresholds ───────────────────────────────────────
+export const WEATHER_CLOUDY_MIN = 1; // 1 metric warm
+export const WEATHER_RAINY_MIN = 2;  // 2 metrics warm
 
 // ── Memory severity thresholds ───────────────────────────────
 export const MEMORY_SEVERITY_TRAUMATIC = 7;  // severity >= 7 is traumatic

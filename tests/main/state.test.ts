@@ -31,6 +31,8 @@ describe('StateManager', () => {
         totalOfflineTime: 0,
         isSleeping: false,
         discomfortCount: 0,
+        systemLoad: 0,
+        systemWeather: 'sunny',
         version: 1,
       };
       const sm = new StateManager(initial);

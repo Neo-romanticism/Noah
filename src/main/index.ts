@@ -10,6 +10,7 @@ import { getDataPath } from './persistence/paths.js';
 import { SessionTracker } from './session';
 import { SystemPoller } from './system/poller.js';
 import { buildMemoryContext, resolveEmotion, clampStat } from '../shared/utils/index.js';
+import { deriveWeather } from '../shared/utils/sensory.js';
 
 
 interface AppServices {
@@ -147,10 +148,13 @@ const bootstrap = async (): Promise<void> => {
   systemPoller.watchProcesses(['chrome', 'code', 'node']);
 
   systemPoller.onMetrics((metrics, sensation) => {
-    // Update state with current CPU load
+    const weather = deriveWeather(metrics);
+
+    // Update state with current CPU load and derived weather
     stateManager.modify((draft) => ({
       ...draft,
       systemLoad: metrics.cpuLoad,
+      systemWeather: weather,
     }));
 
     // Also push directly to all renderer windows
@@ -158,7 +162,7 @@ const bootstrap = async (): Promise<void> => {
       win.webContents.send('system:metrics', metrics);
     }
 
-    console.log(`[System] CPU load: ${metrics.cpuLoad}% — Noah feels ${sensation}`);
+    console.log(`[System] CPU load: ${metrics.cpuLoad}% — Noah feels ${sensation} — Weather: ${weather}`);
   });
 
   systemPoller.onProcessChange((changes) => {

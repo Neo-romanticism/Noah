@@ -1,5 +1,7 @@
 // Shared types across main and renderer processes
 
+export type SystemWeather = 'sunny' | 'cloudy' | 'rainy' | 'stormy';
+
 export interface NoahState {
   // ── Core emotional parameters ──
   emotion: Emotion;
@@ -25,6 +27,7 @@ export interface NoahState {
 
   // ── System awareness ──
   systemLoad: number;         // 0-100, current CPU load
+  systemWeather: SystemWeather; // derived from CPU/RAM/temp
 
   // ── Metadata ──
   version: number;            // state schema version for migration

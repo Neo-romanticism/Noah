@@ -67,6 +67,7 @@ export const createDefaultState = (): NoahState => ({
   isSleeping: DEFAULT_IS_SLEEPING,
   discomfortCount: DEFAULT_DISCOMFORT_COUNT,
   systemLoad: 0,
+  systemWeather: 'sunny',
   version: STATE_VERSION,
 });
 

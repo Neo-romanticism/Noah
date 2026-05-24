@@ -5,14 +5,18 @@
  * and usable in both main and renderer processes.
  */
 
+import type { SystemMetrics, SystemWeather } from '../types';
 import {
   CPU_LOAD_COMFORTABLE_MAX,
   CPU_LOAD_WARM_MAX,
   CPU_LOAD_HOT_MAX,
   RAM_USAGE_HEAVY_MAX,
   RAM_USAGE_LIGHT_MAX,
+  RAM_USAGE_WARM_MAX,
   CPU_TEMP_NORMAL_MAX,
   CPU_TEMP_WARNING_MAX,
+  WEATHER_CLOUDY_MIN,
+  WEATHER_RAINY_MIN,
 } from '../constants';
 
 
@@ -84,5 +88,30 @@ export const cpuTempColor = (temp: number): string => {
   if (temp <= CPU_TEMP_NORMAL_MAX) return '#4ade80'; // green
   if (temp <= CPU_TEMP_WARNING_MAX) return '#facc15'; // yellow
   return '#ef4444'; // red
+};
+
+export const deriveWeather = (metrics: SystemMetrics): SystemWeather => {
+  // Critical overrides everything
+  if (metrics.cpuLoad > CPU_LOAD_HOT_MAX) return 'stormy';
+  if (metrics.ramUsage > RAM_USAGE_HEAVY_MAX) return 'stormy';
+  if (metrics.cpuTemp > CPU_TEMP_WARNING_MAX) return 'stormy';
+
+  let score = 0;
+  if (metrics.cpuLoad > CPU_LOAD_WARM_MAX) score += 1;
+  if (metrics.ramUsage > RAM_USAGE_WARM_MAX) score += 1;
+  if (metrics.cpuTemp > CPU_TEMP_NORMAL_MAX) score += 1;
+
+  if (score >= WEATHER_RAINY_MIN) return 'rainy';
+  if (score >= WEATHER_CLOUDY_MIN) return 'cloudy';
+  return 'sunny';
+};
+
+export const weatherColor = (weather: SystemWeather): string => {
+  switch (weather) {
+    case 'sunny':  return '#87ceeb';  // sky blue
+    case 'cloudy': return '#b0c4de';  // light steel blue
+    case 'rainy':  return '#708090';  // slate gray
+    case 'stormy': return '#2f4f4f';  // dark slate gray
+  }
 };
 

@@ -114,14 +114,16 @@
 - [x] Verification — `npm test` **231 passed** (+1), `npm run build` clean
 
 ### Slice 6: "Weather" Visualization
-- [ ] **Contract first**: define `SystemWeather` type (`'sunny'|'cloudy'|'rainy'|'stormy'`)
-- [ ] `types/index.ts`: add `SystemWeather` + `systemWeather` to `NoahState`
-- [ ] `sensory.ts`: `deriveWeather(metrics)` — `cpuLoad` + `ramUsage` + `cpuTemp` → weather
-- [ ] `sensory.ts`: `weatherColor(weather)` — sky colors
-- [ ] `poller.ts`: derive weather in `poll()`, include in state update
-- [ ] `main/index.ts`: update `NoahState.systemWeather` via `stateManager.modify()`
-- [ ] `renderer/index.ts`: change scene background / window based on weather
-- [ ] Tests: metric combinations → expected weather
+- [x] `types/index.ts`: `SystemWeather` type (`'sunny'|'cloudy'|'rainy'|'stormy'`)
+- [x] `types/index.ts`: `NoahState.systemWeather` field
+- [x] `constants/index.ts`: `WEATHER_CLOUDY_MIN`, `WEATHER_RAINY_MIN`
+- [x] `sensory.ts`: `deriveWeather(metrics)` — score-based (CPU+RAM+Temp)
+- [x] `sensory.ts`: `weatherColor(weather)` — 4 sky colors
+- [x] `utils/index.ts`: `createDefaultState()` with `systemWeather: 'sunny'`
+- [x] `main/index.ts`: update `systemWeather` via `stateManager.modify()`
+- [x] `renderer/index.ts`: background plane with weather-reactive color
+- [x] Tests: `deriveWeather` boundary tests (6) + `weatherColor` tests (4)
+- [x] Verification — `npm test` **236 passed** (+5), `npm run build` clean
 
 ---
 
