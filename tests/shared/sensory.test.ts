@@ -1,9 +1,12 @@
 import {
   translateCpuLoad,
   cpuLoadColor,
+  translateRamUsage,
+  ramUsageColor,
 } from '../../src/shared/utils/sensory.js';
 
 describe('sensory translation', () => {
+
   describe('translateCpuLoad', () => {
     it('returns "cool and relaxed" for low load (0-30)', () => {
       expect(translateCpuLoad(0)).toBe('cool and relaxed');
@@ -50,4 +53,42 @@ describe('sensory translation', () => {
       expect(cpuLoadColor(100)).toBe('#ef4444');
     });
   });
+
+  describe('translateRamUsage', () => {
+    it('returns "light and spacious" for low usage (0-50)', () => {
+      expect(translateRamUsage(0)).toBe('light and spacious');
+      expect(translateRamUsage(10)).toBe('light and spacious');
+      expect(translateRamUsage(50)).toBe('light and spacious');
+    });
+
+    it('returns "getting crowded" for medium usage (51-80)', () => {
+      expect(translateRamUsage(51)).toBe('getting crowded');
+      expect(translateRamUsage(70)).toBe('getting crowded');
+      expect(translateRamUsage(80)).toBe('getting crowded');
+    });
+
+    it('returns "stuffed, can barely breathe" for high usage (81-100)', () => {
+      expect(translateRamUsage(81)).toBe('stuffed, can barely breathe');
+      expect(translateRamUsage(99)).toBe('stuffed, can barely breathe');
+      expect(translateRamUsage(100)).toBe('stuffed, can barely breathe');
+    });
+  });
+
+  describe('ramUsageColor', () => {
+    it('returns blue for low usage', () => {
+      expect(ramUsageColor(0)).toBe('#60a5fa');
+      expect(ramUsageColor(50)).toBe('#60a5fa');
+    });
+
+    it('returns purple for medium usage', () => {
+      expect(ramUsageColor(51)).toBe('#a78bfa');
+      expect(ramUsageColor(80)).toBe('#a78bfa');
+    });
+
+    it('returns pink for high usage', () => {
+      expect(ramUsageColor(81)).toBe('#f472b6');
+      expect(ramUsageColor(100)).toBe('#f472b6');
+    });
+  });
 });
+

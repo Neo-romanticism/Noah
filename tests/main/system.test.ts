@@ -1,6 +1,10 @@
-import { SystemPoller } from '../../src/main/system/poller.js';
+import os from 'os';
 
-describe('SystemPoller', () => {
+import { SystemPoller } from '../../src/main/system/poller.js';
+import { getRamUsage } from '../../src/main/system/reader.js';
+
+describe('SystemPoller + reader', () => {
+
   beforeEach(() => {
     jest.useFakeTimers();
   });

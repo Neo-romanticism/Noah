@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
+import { ramUsageColor } from '../shared/utils/sensory.js';
+
 
 const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
@@ -54,6 +56,14 @@ const cpuBar = new THREE.Mesh(barGeometry, barMaterial);
 cpuBar.position.set(0, 1.5, 0);
 scene.add(cpuBar);
 
+// RAM usage visualization bar
+const ramBarGeometry = new THREE.PlaneGeometry(2, 0.1);
+const ramBarMaterial = new THREE.MeshBasicMaterial({ color: 0x60a5fa });
+const ramBar = new THREE.Mesh(ramBarGeometry, ramBarMaterial);
+ramBar.position.set(0, 1.35, 0); // below CPU bar
+scene.add(ramBar);
+
+
 noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
 
@@ -72,7 +82,17 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   // Scale bar width slightly with load
   const scaleX = 0.5 + (load / 100) * 1.5;
   cpuBar.scale.set(scaleX, 1, 1);
+
+  // Update RAM bar
+  const ram = metrics.ramUsage;
+  const ramHex = ramUsageColor(ram);
+  ramBarMaterial.color.set(ramHex);
+
+  // Make RAM bar grow with usage
+  const ramScaleX = 0.5 + (ram / 100) * 1.5;
+  ramBar.scale.set(ramScaleX, 1, 1);
 });
+
 
 
 // Placeholder — FBX avatar will be loaded here via FBXLoader

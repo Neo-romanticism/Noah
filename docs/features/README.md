@@ -22,7 +22,7 @@
 
 ### Environment
 - [ ] **3D Room** — Render room alongside avatar
-- [ ] **System Awareness** — Read CPU/RAM/process data, react to changes
+- [x] **System Awareness** — Read CPU/RAM/process data, react to changes ([docs](System_Awareness.md))
 - [ ] **Offline Awareness** — Track away time, adjust state on return
 
 ### Persistence

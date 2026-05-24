@@ -9,7 +9,8 @@
 
 import type { SystemMetrics } from '../../shared/types/index.js';
 import { SYSTEM_METRICS_POLL_INTERVAL_MS } from '../../shared/constants/index.js';
-import { translateCpuLoad } from '../../shared/utils/sensory.js';
+import { translateCpuLoad, translateRamUsage } from '../../shared/utils/sensory.js';
+
 import { getSystemMetricsSnapshot } from './reader.js';
 
 export type MetricsCallback = (
@@ -71,7 +72,11 @@ export class SystemPoller {
   private poll(): void {
     const metrics = getSystemMetricsSnapshot();
     this.latestMetrics = metrics;
-    const sensation = translateCpuLoad(metrics.cpuLoad);
+
+    const cpuSensation = translateCpuLoad(metrics.cpuLoad);
+    const ramSensation = translateRamUsage(metrics.ramUsage);
+    const sensation = `CPU: ${cpuSensation}; RAM: ${ramSensation}`;
+
 
     for (const cb of this.callbacks) {
       try {

@@ -90,6 +90,11 @@ export const CPU_LOAD_COMFORTABLE_MAX = 30;
 export const CPU_LOAD_WARM_MAX = 60;
 export const CPU_LOAD_HOT_MAX = 85;
 
+// ── Memory (RAM) severity thresholds
+export const RAM_USAGE_LIGHT_MAX = 50;
+export const RAM_USAGE_HEAVY_MAX = 80;
+
+
 // ── Memory severity thresholds ───────────────────────────────
 export const MEMORY_SEVERITY_TRAUMATIC = 7;  // severity >= 7 is traumatic
 

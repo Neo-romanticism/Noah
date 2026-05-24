@@ -45,9 +45,27 @@ export const getCpuLoad = (): number => {
 /**
  * Build a complete SystemMetrics snapshot with real OS data.
  */
+export const getRamUsage = (): number => {
+  const total = os.totalmem();
+  const free = os.freemem();
+
+  if (total === 0) return 0;
+
+  // Used = total - free
+  const usedRatio = (total - free) / total;
+  const usedPercent = usedRatio * 100;
+
+  // Clamp defensively in case of unexpected OS values.
+  return Math.min(100, Math.max(0, Math.round(usedPercent)));
+};
+
+/**
+ * Build a complete SystemMetrics snapshot with real OS data.
+ */
 export const getSystemMetricsSnapshot = (): SystemMetrics => ({
   cpuTemp: 0, // TODO: platform-specific native module in later stage
   cpuLoad: getCpuLoad(),
-  ramUsage: 0, // TODO: next vertical slice
+  ramUsage: getRamUsage(),
   uptime: Math.floor(process.uptime()),
 });
+
