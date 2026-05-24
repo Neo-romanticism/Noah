@@ -9,7 +9,7 @@
 
 import type { SystemMetrics } from '../../shared/types/index.js';
 import { SYSTEM_METRICS_POLL_INTERVAL_MS } from '../../shared/constants/index.js';
-import { translateCpuLoad, translateRamUsage } from '../../shared/utils/sensory.js';
+import { translateCpuLoad, translateRamUsage, translateCpuTemp } from '../../shared/utils/sensory.js';
 
 import { getSystemMetricsSnapshot } from './reader.js';
 
@@ -75,7 +75,8 @@ export class SystemPoller {
 
     const cpuSensation = translateCpuLoad(metrics.cpuLoad);
     const ramSensation = translateRamUsage(metrics.ramUsage);
-    const sensation = `CPU: ${cpuSensation}; RAM: ${ramSensation}`;
+    const tempSensation = translateCpuTemp(metrics.cpuTemp);
+    const sensation = `CPU: ${cpuSensation}; RAM: ${ramSensation}; Temp: ${tempSensation}`;
 
 
     for (const cb of this.callbacks) {

@@ -72,19 +72,22 @@
 - [x] Tests — `sensory.test.ts` RAM boundary tests + `system.test.ts` reader mock tests
 - [x] Verification — `npm test` **209 passed**, `npm run build` clean
 
+### Stage 3: Slice 3 — CPU Temperature
+- [x] `reader.ts`: `getCpuTemp()` — Linux `sensors`, macOS `powermetrics`/`smc`, Windows `wmic`
+- [x] `reader.ts`: `getSystemMetricsSnapshot()` — `cpuTemp: getCpuTemp()` (replace `0`)
+- [x] `reader.ts`: fallback (`0` with `console.warn` if unsupported)
+- [x] `reader.ts`: `safeExecSyncString()` with `shell: true` for proper shell operator support
+- [x] `constants/index.ts`: `CPU_TEMP_NORMAL_MAX = 60`, `CPU_TEMP_WARNING_MAX = 80`
+- [x] `sensory.ts`: `translateCpuTemp(temp)` + `cpuTempColor(temp)`
+- [x] `poller.ts`: include temp sensation in callback string (`CPU: ...; RAM: ...; Temp: ...`)
+- [x] `renderer/index.ts`: temperature indicator dot (right of CPU bar), color reactive
+- [x] Tests: `sensory.test.ts` temperature boundary tests (8 new)
+- [x] Tests: `system.test.ts` `execSync` mock tests for platform parsing + fallback (7 new)
+- [x] Verification — `npm test` **224 passed** (+15), `npm run build` clean
+
 ---
 
-## ⏳ Pending: Stage 3 Slices 3–6
-
-### Slice 3: CPU Temperature
-- [ ] `reader.ts`: `getCpuTemp()` — Linux `sensors`, macOS `powermetrics`/`smc`, Windows `wmic`
-- [ ] `reader.ts`: `getSystemMetricsSnapshot()` — `cpuTemp: getCpuTemp()` (replace `0`)
-- [ ] `reader.ts`: fallback (`0` with `console.warn` if unsupported)
-- [ ] `sensory.ts`: `translateCpuTemp(temp)` + `cpuTempColor(temp)`
-- [ ] `poller.ts`: include temp sensation in callback
-- [ ] `constants/index.ts`: `CPU_TEMP_NORMAL_MAX`, `CPU_TEMP_WARNING_MAX`
-- [ ] `renderer/index.ts`: temp indicator (numeric or color tint)
-- [ ] Tests: platform-specific reader mocks
+## ⏳ Pending: Stage 3 Slices 4–6
 
 ### Slice 4: Running Process List
 - [ ] `types/index.ts`: `ProcessInfo` interface (`pid`, `name`, `cmd`)
@@ -111,6 +114,16 @@
 - [ ] `main/index.ts`: update `NoahState.systemWeather` via `stateManager.modify()`
 - [ ] `renderer/index.ts`: change scene background / window based on weather
 - [ ] Tests: metric combinations → expected weather
+
+---
+
+## 📝 Notes / Open Questions
+
+### Slice 3 Implementation Notes
+- **`safeExecSyncString`에 `shell: true` 추가됨**: `|| echo ""`, `2>/dev/null` 같은 쉘 연산자가 의도대로 동작
+- **`console.warn` 이중 로깅**: `safeExecSyncString` 내부에서 명령 실패 시 warn + `getCpuTemp` 최하단에서 플랫폼 미지원 warn. 둘 다 유용하므로 유지.
+- **Windows Kelvin→Celsius**: `wmic` 출력이 tenths of Kelvin (예: 3182 = 318.2K = 45.05°C)
+- **Linux millidegree 보정**: `sensors`가 millidegree(×1000)로 반환하는 경우 `raw > 200` 체크로 `/1000` 보정
 
 ---
 

@@ -3,6 +3,8 @@ import {
   cpuLoadColor,
   translateRamUsage,
   ramUsageColor,
+  translateCpuTemp,
+  cpuTempColor,
 } from '../../src/shared/utils/sensory.js';
 
 describe('sensory translation', () => {
@@ -88,6 +90,52 @@ describe('sensory translation', () => {
     it('returns pink for high usage', () => {
       expect(ramUsageColor(81)).toBe('#f472b6');
       expect(ramUsageColor(100)).toBe('#f472b6');
+    });
+  });
+
+  describe('translateCpuTemp', () => {
+    it('returns "temperature unknown" for 0 or negative', () => {
+      expect(translateCpuTemp(0)).toBe('temperature unknown');
+      expect(translateCpuTemp(-5)).toBe('temperature unknown');
+    });
+
+    it('returns "comfortable" for normal temps (1-60)', () => {
+      expect(translateCpuTemp(1)).toBe('comfortable');
+      expect(translateCpuTemp(30)).toBe('comfortable');
+      expect(translateCpuTemp(60)).toBe('comfortable');
+    });
+
+    it('returns "warm, slightly feverish" for warning temps (61-80)', () => {
+      expect(translateCpuTemp(61)).toBe('warm, slightly feverish');
+      expect(translateCpuTemp(70)).toBe('warm, slightly feverish');
+      expect(translateCpuTemp(80)).toBe('warm, slightly feverish');
+    });
+
+    it('returns "burning up, dangerously hot" for critical temps (81+)', () => {
+      expect(translateCpuTemp(81)).toBe('burning up, dangerously hot');
+      expect(translateCpuTemp(100)).toBe('burning up, dangerously hot');
+    });
+  });
+
+  describe('cpuTempColor', () => {
+    it('returns gray for unknown temp', () => {
+      expect(cpuTempColor(0)).toBe('#9ca3af');
+      expect(cpuTempColor(-10)).toBe('#9ca3af');
+    });
+
+    it('returns green for normal temp', () => {
+      expect(cpuTempColor(1)).toBe('#4ade80');
+      expect(cpuTempColor(60)).toBe('#4ade80');
+    });
+
+    it('returns yellow for warning temp', () => {
+      expect(cpuTempColor(61)).toBe('#facc15');
+      expect(cpuTempColor(80)).toBe('#facc15');
+    });
+
+    it('returns red for critical temp', () => {
+      expect(cpuTempColor(81)).toBe('#ef4444');
+      expect(cpuTempColor(100)).toBe('#ef4444');
     });
   });
 });

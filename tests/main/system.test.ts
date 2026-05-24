@@ -1,7 +1,10 @@
 import os from 'os';
+import { execSync } from 'child_process';
 
 import { SystemPoller } from '../../src/main/system/poller.js';
-import { getRamUsage } from '../../src/main/system/reader.js';
+import { getRamUsage, getCpuTemp } from '../../src/main/system/reader.js';
+
+jest.mock('child_process');
 
 describe('SystemPoller + reader', () => {
 
@@ -141,6 +144,65 @@ describe('SystemPoller + reader', () => {
       expect(goodCb).toHaveBeenCalledTimes(1);
 
       poller.stop();
+    });
+  });
+
+  describe('getCpuTemp', () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
+    it('parses Linux sensors -u output (temp1_input)', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockReturnValue('temp1_input: 45.500\n');
+
+      expect(getCpuTemp()).toBe(46);
+    });
+
+    it('parses Linux sensors output (Core 0 temp)', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockReturnValue('Core 0: +62.0°C\n');
+
+      expect(getCpuTemp()).toBe(62);
+    });
+
+    it('parses macOS powermetrics output (CPU die temperature)', () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      (execSync as jest.Mock).mockReturnValue('CPU die temperature: 55.3 C\n');
+
+      expect(getCpuTemp()).toBe(55);
+    });
+
+    it('parses Windows wmic output (Kelvin to Celsius)', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      (execSync as jest.Mock).mockReturnValue('CurrentTemperature\n3182\n');
+
+      expect(getCpuTemp()).toBe(45); // 318.2 - 273.15 = 45.05 → 45
+    });
+
+    it('falls back to 0 when command fails', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockImplementation(() => {
+        throw new Error('command not found');
+      });
+
+      expect(getCpuTemp()).toBe(0);
+    });
+
+    it('falls back to 0 on unsupported platform', () => {
+      Object.defineProperty(process, 'platform', { value: 'freebsd' });
+
+      expect(getCpuTemp()).toBe(0);
+    });
+
+    it('handles millidegree values on Linux (raw > 200)', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockReturnValue('temp1_input: 45500\n');
+
+      expect(getCpuTemp()).toBe(46); // 45500 / 1000 = 45.5 → 46
     });
   });
 });

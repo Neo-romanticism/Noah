@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
-import { ramUsageColor } from '../shared/utils/sensory.js';
+import { ramUsageColor, cpuTempColor } from '../shared/utils/sensory.js';
 
 
 const container = document.getElementById('scene-container');
@@ -63,6 +63,13 @@ const ramBar = new THREE.Mesh(ramBarGeometry, ramBarMaterial);
 ramBar.position.set(0, 1.35, 0); // below CPU bar
 scene.add(ramBar);
 
+// CPU temperature indicator dot
+const tempDotGeometry = new THREE.CircleGeometry(0.08, 32);
+const tempDotMaterial = new THREE.MeshBasicMaterial({ color: 0x9ca3af });
+const tempDot = new THREE.Mesh(tempDotGeometry, tempDotMaterial);
+tempDot.position.set(1.2, 1.5, 0); // right of CPU bar
+scene.add(tempDot);
+
 
 noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
@@ -91,6 +98,10 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   // Make RAM bar grow with usage
   const ramScaleX = 0.5 + (ram / 100) * 1.5;
   ramBar.scale.set(ramScaleX, 1, 1);
+
+  // Update temperature dot
+  const temp = metrics.cpuTemp;
+  tempDotMaterial.color.set(cpuTempColor(temp));
 });
 
 
