@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 
 import type { InteractionEvent, MemoryEvent, NoahState } from '../../shared/types/index.js';
-import { createDefaultState, reconcileAbsence as reconcileAbsenceUtil } from '../../shared/utils/index.js';
+import { createDefaultState, buildMemoryContext, reconcileAbsence as reconcileAbsenceUtil } from '../../shared/utils/index.js';
 
 export class StateManager {
   private readonly emitter = new EventEmitter();
@@ -51,14 +51,7 @@ export class StateManager {
       this.memoryStore.record({
         type: this.interactionTypeToMemoryEvent(event.type),
         severity: this.getInteractionSeverity(event.type),
-        context: {
-          emotion: this.state.emotion,
-          affection: this.state.affection,
-          morality: this.state.morality,
-          hunger: this.state.hunger,
-          fatigue: this.state.fatigue,
-          trauma: this.state.trauma,
-        },
+        context: buildMemoryContext(this.state),
         description: `User performed ${event.type} interaction`,
       });
     }
@@ -67,10 +60,15 @@ export class StateManager {
   }
 
   /**
-   * Tick hook for decay.
+   * Tick hook for decay and totalOnlineTime accumulation.
    */
   public tick(now: number = Date.now()): NoahState {
-    this.state = { ...this.state, lastSeen: now } satisfies NoahState;
+    const elapsed = Math.max(0, Math.floor((now - this.state.lastSeen) / 1000));
+    this.state = {
+      ...this.state,
+      lastSeen: now,
+      totalOnlineTime: this.state.totalOnlineTime + elapsed,
+    } satisfies NoahState;
     this.emitter.emit('state', this.state);
     return this.state;
   }

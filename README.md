@@ -52,8 +52,8 @@ noah/
 ├── tests/                 # Jest test suite
 ├── package.json
 ├── tsconfig.json
-├── webpack.config.cjs
-└── electron-builder.yml
+├── tsconfig.main.json
+└── tsconfig.renderer.json
 ```
 
 ## 🚀 Development

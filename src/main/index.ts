@@ -8,6 +8,18 @@ import { MemoryStore } from './memory';
 import { ensureDataDir, loadState, AutoSaveController } from './persistence';
 import { getDataPath } from './persistence/paths.js';
 import { SessionTracker } from './session';
+import { SystemPoller } from './system/poller.js';
+import { buildMemoryContext } from '../shared/utils/index.js';
+
+interface AppServices {
+  stateManager: StateManager;
+  memoryStore: MemoryStore;
+  autoSave: AutoSaveController;
+  sessionTracker: SessionTracker;
+  systemPoller: SystemPoller;
+}
+
+let services: AppServices | null = null;
 
 
 const WINDOW_CONFIG = {
@@ -36,7 +48,7 @@ const getDefaultPosition = (): { x: number; y: number } => {
   };
 };
 
-const createWindow = (stateManager: StateManager): void => {
+const createWindow = (stateManager: StateManager): BrowserWindow => {
   const position = getDefaultPosition();
   const mainWindow = new BrowserWindow({ ...WINDOW_CONFIG, x: position.x, y: position.y });
 
@@ -51,24 +63,33 @@ const createWindow = (stateManager: StateManager): void => {
   stateManager.onStateChange((state) => {
     mainWindow.webContents.send('state:update', state);
   });
+
+  return mainWindow;
 };
 
 const handleActivate = (): void => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    const dataDir = ensureDataDir();
-    const persisted = loadState(dataDir);
-    const stateManager = new StateManager(persisted ?? undefined);
-    const memoryStore = new MemoryStore(dataDir);
-    memoryStore.load();
-    stateManager.setMemoryStore(memoryStore);
+  if (BrowserWindow.getAllWindows().length === 0 && services !== null) {
+    const { stateManager, systemPoller } = services;
 
     registerIpc({
       getState: () => stateManager.getState(),
-      onAction: (event) => stateManager.applyInteraction(event),
-      sendSystemMetrics: (_wc) => {
-        // metrics pushed by systemTicker per window
+      onAction: (event) => {
+        stateManager.applyInteraction(event);
+        services!.sessionTracker.onUserActivity();
+      },
+      sendSystemMetrics: (wc, metrics) => {
+        wc.send('system:metrics', metrics);
       },
     });
+
+    // Re-register system poller callback for the new window
+    systemPoller.onMetrics((metrics) => {
+      const wins = BrowserWindow.getAllWindows();
+      for (const win of wins) {
+        win.webContents.send('system:metrics', metrics);
+      }
+    });
+
     createWindow(stateManager);
   }
 };
@@ -109,21 +130,14 @@ const bootstrap = async (): Promise<void> => {
       memoryStore.record({
         type: 'woke',
         severity: 1,
-        context: {
-          emotion: stateManager.getState().emotion,
-          affection: stateManager.getState().affection,
-          morality: stateManager.getState().morality,
-          hunger: stateManager.getState().hunger,
-          fatigue: stateManager.getState().fatigue,
-          trauma: stateManager.getState().trauma,
-        },
+        context: buildMemoryContext(stateManager.getState()),
         description: `App started after ${offlineSeconds >= 86400 ? `${Math.floor(offlineSeconds / 86400)}d` : `${Math.floor(offlineSeconds / 3600)}h`} offline`,
       });
     }
   }
 
   // 7. Initialize AutoSaveController
-  const autoSave = new AutoSaveController(stateManager, dataDir);
+  const autoSave = new AutoSaveController(stateManager, memoryStore, dataDir);
   autoSave.start();
 
   // 8. Initialize SessionTracker
@@ -136,6 +150,27 @@ const bootstrap = async (): Promise<void> => {
   );
   sessionTracker.start();
 
+  // 8.5 Initialize SystemPoller (CPU load only for Stage 3 slice)
+  const systemPoller = new SystemPoller();
+  systemPoller.onMetrics((metrics, sensation) => {
+    // Update state with current CPU load
+    stateManager.modify((draft) => ({
+      ...draft,
+      systemLoad: metrics.cpuLoad,
+    }));
+
+    // Also push directly to all renderer windows
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('system:metrics', metrics);
+    }
+
+    console.log(`[System] CPU load: ${metrics.cpuLoad}% — Noah feels ${sensation}`);
+  });
+  systemPoller.start();
+
+  // Store references for reinitialization on activate
+  services = { stateManager, memoryStore, autoSave, sessionTracker, systemPoller };
+
   // 9. Register IPC channels
   registerIpc({
     getState: () => stateManager.getState(),
@@ -143,8 +178,8 @@ const bootstrap = async (): Promise<void> => {
       stateManager.applyInteraction(event);
       sessionTracker.onUserActivity();
     },
-    sendSystemMetrics: (_wc) => {
-      // metrics are pushed by systemTicker per window
+    sendSystemMetrics: (wc, metrics) => {
+      wc.send('system:metrics', metrics);
     },
   });
 
@@ -160,6 +195,7 @@ const bootstrap = async (): Promise<void> => {
   app.on('will-quit', () => {
     autoSave.stop();
     sessionTracker.stop();
+    systemPoller.stop();
   });
 
   app.on('activate', handleActivate);

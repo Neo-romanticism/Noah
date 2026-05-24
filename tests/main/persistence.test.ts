@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-import { saveState, loadState, AutoSaveController } from '../../src/main/persistence/index.js';
+import { saveState, loadState, AutoSaveController, migrateState } from '../../src/main/persistence/index.js';
 import { ensureDataDir, getStateFilePath, getBackupFilePath } from '../../src/main/persistence/paths.js';
 import { rotateBackups, loadStateWithBackup } from '../../src/main/persistence/backup.js';
 import type { NoahState } from '../../src/shared/types/index.js';
@@ -152,7 +152,9 @@ describe('Persistence', () => {
         },
       };
 
-      const controller = new AutoSaveController(stateManager as any, dataDir, { debounceMs: 50, checkpointMs: 60000 });
+      const memoryStore = { save: jest.fn() };
+
+      const controller = new AutoSaveController(stateManager, memoryStore, dataDir, { debounceMs: 50, checkpointMs: 60000 });
       controller.start();
 
       // Mutate state and emit change
@@ -167,18 +169,23 @@ describe('Persistence', () => {
         const loaded = loadState(dataDir);
         expect(loaded).not.toBeNull();
         expect(loaded?.affection).toBe(80);
+
+        // Verify memoryStore.save() was called
+        expect(memoryStore.save).toHaveBeenCalled();
         done();
       }, 150);
     });
 
-    it('saveNow forces immediate save', () => {
+    it('saveNow forces immediate save and saves memory', () => {
       const stateManager = {
         state: createDefaultState(),
         getState: function () { return this.state; },
         onStateChange: function () { return () => {}; },
       };
 
-      const controller = new AutoSaveController(stateManager as any, dataDir);
+      const memoryStore = { save: jest.fn() };
+
+      const controller = new AutoSaveController(stateManager, memoryStore, dataDir);
       controller.start();
 
       stateManager.state = { ...stateManager.state, affection: 90 };
@@ -186,6 +193,9 @@ describe('Persistence', () => {
 
       const loaded = loadState(dataDir);
       expect(loaded?.affection).toBe(90);
+
+      // Verify memoryStore.save() was called
+      expect(memoryStore.save).toHaveBeenCalledTimes(1);
 
       controller.stop();
     });
@@ -197,12 +207,47 @@ describe('Persistence', () => {
         onStateChange: function () { return () => {}; },
       };
 
-      const controller = new AutoSaveController(stateManager as any, dataDir);
+      const memoryStore = { save: jest.fn() };
+
+      const controller = new AutoSaveController(stateManager, memoryStore, dataDir);
       controller.start();
       controller.stop();
 
       // Should not throw
       expect(() => controller.stop()).not.toThrow();
+    });
+  });
+
+  // ── State Migration ────────────────────────────────────────
+  describe('migrateState', () => {
+    it('returns state unchanged when version is current', () => {
+      const state = createDefaultState();
+      const migrated = migrateState(state);
+      expect(migrated.version).toBe(state.version);
+      expect(migrated.affection).toBe(state.affection);
+    });
+
+    it('sets version to current when version field is missing', () => {
+      const state = { ...createDefaultState(), version: undefined as unknown as number };
+      const migrated = migrateState(state);
+      expect(migrated.version).toBe(1);
+    });
+
+    it('returns fresh default state when version is newer than current', () => {
+      const state = { ...createDefaultState(), version: 999 };
+      const migrated = migrateState(state);
+      expect(migrated.version).toBe(1);
+      expect(migrated.affection).toBe(50); // default value
+    });
+
+    it('bumps version when no migrations are registered', () => {
+      // With current STATE_VERSION = 1 and no migrations registered,
+      // a state at version 0 should be bumped to version 1.
+      const state = { ...createDefaultState(), version: 0 };
+      const migrated = migrateState(state);
+
+      expect(migrated.version).toBe(1);
+      expect(migrated.affection).toBe(state.affection);
     });
   });
 });

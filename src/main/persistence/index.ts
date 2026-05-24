@@ -10,7 +10,14 @@
 import fs from 'fs';
 
 import type { NoahState } from '../../shared/types/index.js';
-import { SAVE_DEBOUNCE_MS, CHECKPOINT_INTERVAL_MS } from '../../shared/constants/index.js';
+import {
+  SAVE_DEBOUNCE_MS,
+  CHECKPOINT_INTERVAL_MS,
+  STATE_VERSION,
+} from '../../shared/constants/index.js';
+import { createDefaultState } from '../../shared/utils/index.js';
+import type { StateManager } from '../state/index.js';
+import type { MemoryStore } from '../memory/index.js';
 import { getStateFilePath } from './paths.js';
 import { rotateBackups, loadStateWithBackup } from './backup.js';
 
@@ -39,7 +46,43 @@ export const saveState = (state: NoahState, dataDir: string): void => {
  */
 export const loadState = (dataDir: string): NoahState | null => {
   const filePath = getStateFilePath(dataDir);
-  return loadStateWithBackup(dataDir, filePath);
+  const loaded = loadStateWithBackup(dataDir, filePath);
+  if (loaded === null) return null;
+  return migrateState(loaded);
+};
+
+// ── State Migration ───────────────────────────────────────────
+
+/** Migration functions keyed by target version number. */
+const MIGRATIONS: Record<number, (state: NoahState) => NoahState> = {};
+
+/**
+ * Apply sequential migrations to bring a loaded state up to the current version.
+ * If the state version is missing or newer than expected, returns a fresh default state.
+ */
+export const migrateState = (state: NoahState): NoahState => {
+  const currentVersion = state.version ?? 0;
+
+  // If version is newer than we know about, reset to defaults (schema mismatch)
+  if (currentVersion > STATE_VERSION) {
+    return createDefaultState();
+  }
+
+  // Apply migrations sequentially from currentVersion + 1 up to STATE_VERSION
+  let migrated = state;
+  for (let v = currentVersion + 1; v <= STATE_VERSION; v++) {
+    const migration = MIGRATIONS[v];
+    if (migration !== undefined) {
+      migrated = migration(migrated);
+    }
+  }
+
+  // Ensure version is up to date
+  if (migrated.version !== STATE_VERSION) {
+    migrated = { ...migrated, version: STATE_VERSION };
+  }
+
+  return migrated;
 };
 
 // ── AutoSaveController ──────────────────────────────────────
@@ -56,7 +99,8 @@ export interface AutoSaveControllerOptions {
  * 3. Periodic checkpoint save
  */
 export class AutoSaveController {
-  private readonly stateManager: { getState: () => NoahState; onStateChange: (listener: (state: NoahState) => void) => () => void };
+  private readonly stateManager: Pick<StateManager, 'getState' | 'onStateChange'>;
+  private readonly memoryStore: Pick<MemoryStore, 'save'>;
   private readonly dataDir: string;
   private readonly debounceMs: number;
   private readonly checkpointMs: number;
@@ -67,11 +111,13 @@ export class AutoSaveController {
   private running = false;
 
   constructor(
-    stateManager: { getState: () => NoahState; onStateChange: (listener: (state: NoahState) => void) => () => void },
+    stateManager: Pick<StateManager, 'getState' | 'onStateChange'>,
+    memoryStore: Pick<MemoryStore, 'save'>,
     dataDir: string,
     options?: AutoSaveControllerOptions,
   ) {
     this.stateManager = stateManager;
+    this.memoryStore = memoryStore;
     this.dataDir = dataDir;
     this.debounceMs = options?.debounceMs ?? SAVE_DEBOUNCE_MS;
     this.checkpointMs = options?.checkpointMs ?? CHECKPOINT_INTERVAL_MS;
@@ -123,6 +169,7 @@ export class AutoSaveController {
 
     const state = this.stateManager.getState();
     saveState(state, this.dataDir);
+    this.memoryStore.save();
   }
 
   /** Schedule a debounced save. */

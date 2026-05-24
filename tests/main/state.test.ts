@@ -187,6 +187,26 @@ describe('StateManager', () => {
       sm.tick(now);
       expect(sm.getState().lastSeen).toBe(now);
     });
+
+    it('accumulates totalOnlineTime across multiple ticks', () => {
+      const sm = new StateManager();
+      const start = 1_000_000;
+      sm.tick(start); // first tick sets lastSeen, no elapsed time
+      expect(sm.getState().totalOnlineTime).toBe(0);
+
+      sm.tick(start + 5_000); // 5 seconds later
+      expect(sm.getState().totalOnlineTime).toBe(5);
+
+      sm.tick(start + 8_000); // 3 more seconds
+      expect(sm.getState().totalOnlineTime).toBe(8);
+    });
+
+    it('does not go negative when now is before lastSeen', () => {
+      const sm = new StateManager();
+      sm.tick(1000);
+      sm.tick(500); // earlier than previous tick
+      expect(sm.getState().totalOnlineTime).toBe(0);
+    });
   });
 
   // ── modify ───────────────────────────────────────────────

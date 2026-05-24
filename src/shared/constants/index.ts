@@ -83,6 +83,13 @@ export const MEMORY_DECAY_FLOOR_NEUTRAL = 0.0;
 export const MEMORY_DECAY_FLOOR_NEGATIVE = 0.2;
 export const MEMORY_DECAY_FLOOR_TRAUMATIC = 0.8;
 
+// ── System metrics ───────────────────────────────────────────
+export const SYSTEM_METRICS_POLL_INTERVAL_MS = 5_000; // 5 seconds
+
+export const CPU_LOAD_COMFORTABLE_MAX = 30;
+export const CPU_LOAD_WARM_MAX = 60;
+export const CPU_LOAD_HOT_MAX = 85;
+
 // ── Memory severity thresholds ───────────────────────────────
 export const MEMORY_SEVERITY_TRAUMATIC = 7;  // severity >= 7 is traumatic
 

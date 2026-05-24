@@ -2,7 +2,7 @@
 issue_id: ISSUE-003
 type: 설정
 priority: 높음
-status: 완료
+status: 폐기
 labels: [mcp, config, postman, done]
 related: [ISSUE-001, ISSUE-002]
 ---

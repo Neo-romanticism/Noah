@@ -12,6 +12,7 @@ import {
   secondsSinceLastSeen,
   reconcileAbsence,
   calculateReturnSeverity,
+  formatDuration,
 } from '../../src/shared/utils/index.js';
 
 describe('shared/utils', () => {
@@ -111,9 +112,14 @@ describe('shared/utils', () => {
       expect(resolveEmotion({ ...base, fatigue: 100 })).toBe('tired');
     });
 
-    it('returns "hostage" when affection <= 10', () => {
-      expect(resolveEmotion({ ...base, affection: 0 })).toBe('hostage');
-      expect(resolveEmotion({ ...base, affection: 10 })).toBe('hostage');
+    it('returns "hostage" when affection <= 10 and morality <= 10', () => {
+      expect(resolveEmotion({ ...base, affection: 0, morality: 0 })).toBe('hostage');
+      expect(resolveEmotion({ ...base, affection: 10, morality: 10 })).toBe('hostage');
+    });
+
+    it('returns "sad" when affection <= 10 but morality > 10', () => {
+      expect(resolveEmotion({ ...base, affection: 0, morality: 50 })).toBe('sad');
+      expect(resolveEmotion({ ...base, affection: 10, morality: 50 })).toBe('sad');
     });
 
     it('returns "sad" when affection <= 25', () => {
@@ -131,14 +137,11 @@ describe('shared/utils', () => {
       expect(resolveEmotion({ ...base, affection: 70 })).toBe('happy');
     });
 
-    it('returns "excited" when affection <= 85', () => {
+    it('returns "excited" when affection > 70', () => {
       expect(resolveEmotion({ ...base, affection: 71 })).toBe('excited');
       expect(resolveEmotion({ ...base, affection: 85 })).toBe('excited');
-    });
-
-    it('returns "happy" when affection > 85', () => {
-      expect(resolveEmotion({ ...base, affection: 86 })).toBe('happy');
-      expect(resolveEmotion({ ...base, affection: 100 })).toBe('happy');
+      expect(resolveEmotion({ ...base, affection: 86 })).toBe('excited');
+      expect(resolveEmotion({ ...base, affection: 100 })).toBe('excited');
     });
 
     it('gives trauma priority over hunger/fatigue', () => {
@@ -387,6 +390,32 @@ describe('shared/utils', () => {
     it('returns 6 for absence >= 24 hours', () => {
       expect(calculateReturnSeverity(86400)).toBe(6);
       expect(calculateReturnSeverity(172800)).toBe(6);
+    });
+  });
+
+  // ── Duration formatting ──────────────────────────────────
+  describe('formatDuration', () => {
+    it('formats seconds', () => {
+      expect(formatDuration(0)).toBe('0s');
+      expect(formatDuration(30)).toBe('30s');
+      expect(formatDuration(59)).toBe('59s');
+    });
+
+    it('formats minutes', () => {
+      expect(formatDuration(60)).toBe('1m');
+      expect(formatDuration(1800)).toBe('30m');
+      expect(formatDuration(3599)).toBe('59m');
+    });
+
+    it('formats hours', () => {
+      expect(formatDuration(3600)).toBe('1h');
+      expect(formatDuration(7200)).toBe('2h');
+      expect(formatDuration(86399)).toBe('23h');
+    });
+
+    it('formats days', () => {
+      expect(formatDuration(86400)).toBe('1d');
+      expect(formatDuration(172800)).toBe('2d');
     });
   });
 });

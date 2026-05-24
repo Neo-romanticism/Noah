@@ -1,26 +1,34 @@
 import type { WebContents } from 'electron';
-import type { SystemMetrics } from '../../shared/types';
+import { SystemPoller } from '../system/poller.js';
 
-// Stage 1: simple placeholder metrics ticker.
+// Track active pollers per WebContents to prevent leaks on re-registration.
+const activePollers = new WeakMap<WebContents, SystemPoller>();
 
-// Later stages will replace with real OS/per-process metrics.
+/**
+ * Start a system metrics ticker for the given WebContents.
+ *
+ * Uses SystemPoller (real OS metrics) instead of placeholder values.
+ * Deduplicates on re-registration to prevent timer leaks.
+ */
 export const systemTicker = (webContents: WebContents): void => {
-  const send = () => {
-    const metrics: SystemMetrics = {
-      cpuTemp: 0,
-      cpuLoad: 0,
-      ramUsage: 0,
-      uptime: Math.floor(process.uptime()),
-    };
+  // Deduplicate: stop any existing poller for this WebContents.
+  const existing = activePollers.get(webContents);
+  if (existing !== undefined) {
+    existing.stop();
+  }
+
+  const poller = new SystemPoller();
+
+  poller.onMetrics((metrics) => {
     webContents.send('system:metrics', metrics);
-  };
+  });
 
-  send();
-
-  const interval = setInterval(send, 5_000);
+  poller.start();
+  activePollers.set(webContents, poller);
 
   webContents.once('destroyed', () => {
-    clearInterval(interval);
+    poller.stop();
+    activePollers.delete(webContents);
   });
 };
 

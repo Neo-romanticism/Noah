@@ -1,14 +1,19 @@
 import type { BrowserWindow, WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
-import type { InteractionEvent, NoahState } from '../../shared/types';
+import type { InteractionEvent, NoahState, SystemMetrics } from '../../shared/types';
 
 import { createDefaultState } from '../../shared/utils';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __noahWins: BrowserWindow[] | undefined;
+}
 
 export type IpcDeps = {
   getState: () => NoahState;
   onAction: (event: InteractionEvent) => void;
-  sendSystemMetrics: (wc: WebContents) => void;
+  sendSystemMetrics: (wc: WebContents, metrics: SystemMetrics) => void;
 };
 
 export const registerIpc = (deps: IpcDeps): void => {
@@ -24,11 +29,17 @@ export const registerIpc = (deps: IpcDeps): void => {
   // Main -> Renderer
   const setupForWebContents = (wc: WebContents) => {
     // Send initial metrics/state hook.
-    deps.sendSystemMetrics(wc);
+    const metrics: SystemMetrics = {
+      cpuTemp: 0,
+      cpuLoad: 0,
+      ramUsage: 0,
+      uptime: Math.floor(process.uptime()),
+    };
+    deps.sendSystemMetrics(wc, metrics);
   };
 
   // Register handler for already created windows
-  for (const win of (globalThis as any).__noahWins ?? []) {
+  for (const win of globalThis.__noahWins ?? []) {
     setupForWebContents(win.webContents);
   }
 
@@ -40,9 +51,8 @@ export const registerIpc = (deps: IpcDeps): void => {
 
 // Helpers to support window injection if needed later.
 export const trackWindowForIpc = (win: BrowserWindow): void => {
-  const g = globalThis as any;
-  if (!g.__noahWins) g.__noahWins = [];
-  g.__noahWins.push(win);
+  if (!globalThis.__noahWins) globalThis.__noahWins = [];
+  globalThis.__noahWins.push(win);
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   void win;

@@ -5,7 +5,7 @@
  * making them trivially unit-testable.
  */
 
-import type { Emotion, NoahState } from '../types/index.js';
+import type { Emotion, MemoryEvent, NoahState } from '../types/index.js';
 import {
   STAT_MIN,
   STAT_MAX,
@@ -23,7 +23,6 @@ import {
   AFFECTION_SAD,
   AFFECTION_NEUTRAL,
   AFFECTION_HAPPY,
-  AFFECTION_EXCITED,
   TRAUMA_MODERATE,
   TRAUMA_SEVERE,
   ABSENCE_HUNGER_RATE,
@@ -67,6 +66,7 @@ export const createDefaultState = (): NoahState => ({
   totalOfflineTime: 0,
   isSleeping: DEFAULT_IS_SLEEPING,
   discomfortCount: DEFAULT_DISCOMFORT_COUNT,
+  systemLoad: 0,
   version: STATE_VERSION,
 });
 
@@ -88,14 +88,26 @@ export const resolveEmotion = (state: Omit<NoahState, 'emotion'>): Emotion => {
   if (state.fatigue >= 80) return 'tired';
 
   // Affection-based mood
-  if (state.affection <= AFFECTION_HOSTAGE) return 'hostage';
+  if (state.affection <= AFFECTION_HOSTAGE && state.morality <= AFFECTION_HOSTAGE) return 'hostage';
   if (state.affection <= AFFECTION_SAD) return 'sad';
   if (state.affection <= AFFECTION_NEUTRAL) return 'bored';
   if (state.affection <= AFFECTION_HAPPY) return 'happy';
-  if (state.affection <= AFFECTION_EXCITED) return 'excited';
-
-  return 'happy';
+  return 'excited';
 };
+
+// ── Memory context builder ─────────────────────────────────
+
+/** Build a memory context snapshot from the current state. */
+export const buildMemoryContext = (
+  state: NoahState,
+): Omit<MemoryEvent, 'id' | 'timestamp' | 'severity' | 'type' | 'description' | 'decay'>['context'] => ({
+  emotion: state.emotion,
+  affection: state.affection,
+  morality: state.morality,
+  hunger: state.hunger,
+  fatigue: state.fatigue,
+  trauma: state.trauma,
+});
 
 // ── Stat modifiers ───────────────────────────────────────────
 
@@ -226,4 +238,17 @@ export const calculateReturnSeverity = (absenceSeconds: number): number => {
     return RETURN_SEVERITY_MEDIUM;
   }
   return RETURN_SEVERITY_SHORT;
+};
+
+// ── Duration formatting ──────────────────────────────────────
+
+/**
+ * Format a duration in seconds to a human-readable string.
+ * Uses the largest applicable unit: d (days), h (hours), m (minutes), s (seconds).
+ */
+export const formatDuration = (seconds: number): string => {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 };

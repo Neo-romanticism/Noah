@@ -7,6 +7,10 @@
  */
 
 import { powerMonitor } from 'electron';
+import {
+  SESSION_IDLE_THRESHOLD_MS,
+  SESSION_OFFLINE_THRESHOLD_MS,
+} from '../../shared/constants/index.js';
 
 export type PresenceState = 'active' | 'idle' | 'offline';
 
@@ -31,6 +35,10 @@ export class PresenceDetector {
   private checkInterval: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
+  /** Bound listener references for clean removal. */
+  private readonly onLockScreen: () => void;
+  private readonly onUnlockScreen: () => void;
+
   constructor(
     callbacks: PresenceDetectorCallbacks,
     options?: {
@@ -39,9 +47,13 @@ export class PresenceDetector {
     },
   ) {
     this.callbacks = callbacks;
-    this.idleThresholdMs = options?.idleThresholdMs ?? 300_000; // 5 min
-    this.offlineThresholdMs = options?.offlineThresholdMs ?? 3_600_000; // 1 hour
+    this.idleThresholdMs = options?.idleThresholdMs ?? SESSION_IDLE_THRESHOLD_MS;
+    this.offlineThresholdMs = options?.offlineThresholdMs ?? SESSION_OFFLINE_THRESHOLD_MS;
     this.lastActivity = Date.now();
+
+    // Create bound listener references so we can remove them individually
+    this.onLockScreen = () => this.transitionTo('offline');
+    this.onUnlockScreen = () => this.onUserActivity();
   }
 
   /** Start monitoring presence. */
@@ -54,14 +66,12 @@ export class PresenceDetector {
       this.checkPresence();
     }, 10_000);
 
-    // Listen for system lock/unlock
-    powerMonitor.on('lock-screen', () => {
-      this.transitionTo('offline');
-    });
-
-    powerMonitor.on('unlock-screen', () => {
-      this.onUserActivity();
-    });
+    // Remove any previously registered listeners to prevent duplicates,
+    // then register our own.
+    powerMonitor.removeListener('lock-screen', this.onLockScreen);
+    powerMonitor.removeListener('unlock-screen', this.onUnlockScreen);
+    powerMonitor.on('lock-screen', this.onLockScreen);
+    powerMonitor.on('unlock-screen', this.onUnlockScreen);
   }
 
   /** Stop monitoring presence. */
@@ -73,8 +83,9 @@ export class PresenceDetector {
       this.checkInterval = null;
     }
 
-    powerMonitor.removeAllListeners('lock-screen');
-    powerMonitor.removeAllListeners('unlock-screen');
+    // Only remove our own listeners, not those from other modules
+    powerMonitor.removeListener('lock-screen', this.onLockScreen);
+    powerMonitor.removeListener('unlock-screen', this.onUnlockScreen);
   }
 
   /** Called when user activity is detected (from IPC or system events). */

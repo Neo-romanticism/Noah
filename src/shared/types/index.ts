@@ -23,6 +23,9 @@ export interface NoahState {
   // ── Needs system ──
   discomfortCount: number;    // 0-3, current uncleared discomfort items
 
+  // ── System awareness ──
+  systemLoad: number;         // 0-100, current CPU load
+
   // ── Metadata ──
   version: number;            // state schema version for migration
 }

@@ -2,7 +2,7 @@
 issue_id: ISSUE-004
 type: 설정
 priority: 중간
-status: 진행예정
+status: 폐기
 labels: [mcp, sequentialthinking]
 related: [ISSUE-001]
 ---

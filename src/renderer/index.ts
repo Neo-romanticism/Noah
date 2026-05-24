@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { NoahState, SystemMetrics } from '../shared/types/index.js';
 
 const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
@@ -30,32 +31,47 @@ directionalLight.position.set(5, 5, 5);
 scene.add(directionalLight);
 
 // Stage-01 IPC integration
-const noah = (window as any).noah as
-  | {
-      getState: () => Promise<unknown>;
-      onStateUpdate: (cb: (state: unknown) => void) => void;
-      onSystemMetrics: (cb: (metrics: unknown) => void) => void;
-      sendInteraction: (action: unknown) => void;
-    }
-  | undefined;
+const noah = window.noah;
 
 if (!noah) throw new Error('Noah preload API not available');
 
 noah
   .getState()
-  .then((state: unknown) => {
+  .then((state: NoahState) => {
     console.log('Initial NoahState:', state);
   })
   .catch((err: unknown) => console.error('Failed to getState:', err));
 
-noah.onStateUpdate((state: unknown) => {
+noah.onStateUpdate((state: NoahState) => {
   console.log('NoahState update:', state);
   // Later: update visuals/animation based on emotion/state.
 });
 
-noah.onSystemMetrics((metrics: unknown) => {
-  // Later: display metrics-driven behaviors.
+// CPU load visualization bar
+const barGeometry = new THREE.PlaneGeometry(2, 0.1);
+const barMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+const cpuBar = new THREE.Mesh(barGeometry, barMaterial);
+cpuBar.position.set(0, 1.5, 0);
+scene.add(cpuBar);
+
+noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
+
+  // Update bar color based on CPU load
+  const load = metrics.cpuLoad;
+  if (load <= 30) {
+    barMaterial.color.setHex(0x4ade80); // green
+  } else if (load <= 60) {
+    barMaterial.color.setHex(0xfacc15); // yellow
+  } else if (load <= 85) {
+    barMaterial.color.setHex(0xfb923c); // orange
+  } else {
+    barMaterial.color.setHex(0xef4444); // red
+  }
+
+  // Scale bar width slightly with load
+  const scaleX = 0.5 + (load / 100) * 1.5;
+  cpuBar.scale.set(scaleX, 1, 1);
 });
 
 

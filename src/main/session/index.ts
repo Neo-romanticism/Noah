@@ -6,7 +6,7 @@
  */
 
 import type { MemoryEvent, NoahState } from '../../shared/types/index.js';
-import { calculateReturnSeverity } from '../../shared/utils/index.js';
+import { calculateReturnSeverity, buildMemoryContext, formatDuration } from '../../shared/utils/index.js';
 import { SESSION_IDLE_THRESHOLD_MS, SESSION_OFFLINE_THRESHOLD_MS } from '../../shared/constants/index.js';
 import { PresenceDetector } from './detector.js';
 
@@ -142,14 +142,7 @@ export class SessionTracker {
     this.memoryStore.record({
       type: 'returned',
       severity,
-      context: {
-        emotion: state.emotion,
-        affection: state.affection,
-        morality: state.morality,
-        hunger: state.hunger,
-        fatigue: state.fatigue,
-        trauma: state.trauma,
-      },
+      context: buildMemoryContext(state),
       description: `Returned after ${this.formatAbsence(absenceSeconds)}`,
     });
 
@@ -159,9 +152,6 @@ export class SessionTracker {
 
   /** Format absence duration for human-readable description. */
   private formatAbsence(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-    return `${Math.floor(seconds / 86400)}d`;
+    return formatDuration(seconds);
   }
 }

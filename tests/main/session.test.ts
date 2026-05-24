@@ -2,6 +2,7 @@
 jest.mock('electron', () => ({
   powerMonitor: {
     on: jest.fn(),
+    removeListener: jest.fn(),
     removeAllListeners: jest.fn(),
   },
 }));
@@ -181,6 +182,81 @@ describe('PresenceDetector', () => {
       advanceTime(6000);
 
       expect(onIdle).not.toHaveBeenCalled();
+    });
+
+    it('removes only its own listeners, not other modules listeners', () => {
+      // Simulate another module registering a listener on the same event
+      const { powerMonitor } = require('electron');
+      const otherModuleHandler = jest.fn();
+
+      // Manually simulate another module's listener registration
+      // (powerMonitor.on is already mocked, so we track calls manually)
+      const otherListeners: Array<{ event: string; handler: jest.Mock }> = [];
+      const originalOn = powerMonitor.on;
+      powerMonitor.on = jest.fn((event: string, handler: (...args: unknown[]) => void) => {
+        if (handler !== undefined) {
+          otherListeners.push({ event, handler: handler as jest.Mock });
+        }
+        return originalOn(event, handler);
+      });
+
+      // Register the "other module" listener
+      powerMonitor.on('lock-screen', otherModuleHandler);
+
+      const detector = new PresenceDetector({
+        onActive: jest.fn(),
+        onIdle: jest.fn(),
+        onOffline: jest.fn(),
+      });
+
+      detector.start();
+      detector.stop();
+
+      // After stop(), our detector should have called removeListener for its own handlers
+      expect(powerMonitor.removeListener).toHaveBeenCalledWith(
+        'lock-screen',
+        expect.any(Function),
+      );
+      expect(powerMonitor.removeListener).toHaveBeenCalledWith(
+        'unlock-screen',
+        expect.any(Function),
+      );
+
+      // The other module's handler should NOT have been removed via removeAllListeners
+      expect(powerMonitor.removeAllListeners).not.toHaveBeenCalled();
+
+      // Clean up
+      powerMonitor.on = originalOn;
+    });
+  });
+
+  describe('listener registration', () => {
+    it('does not duplicate listeners when start() is called multiple times', () => {
+      const { powerMonitor } = require('electron');
+
+      const detector = new PresenceDetector({
+        onActive: jest.fn(),
+        onIdle: jest.fn(),
+        onOffline: jest.fn(),
+      });
+
+      // Clear any prior mock calls
+      (powerMonitor.on as jest.Mock).mockClear();
+      (powerMonitor.removeListener as jest.Mock).mockClear();
+
+      // First start
+      detector.start();
+      expect(powerMonitor.on).toHaveBeenCalledTimes(2);
+      expect(powerMonitor.on).toHaveBeenCalledWith('lock-screen', expect.any(Function));
+      expect(powerMonitor.on).toHaveBeenCalledWith('unlock-screen', expect.any(Function));
+
+      // Reset mock to track second call
+      (powerMonitor.on as jest.Mock).mockClear();
+      (powerMonitor.removeListener as jest.Mock).mockClear();
+
+      // Second start (should be no-op due to this.running check)
+      detector.start();
+      expect(powerMonitor.on).not.toHaveBeenCalled();
     });
   });
 });

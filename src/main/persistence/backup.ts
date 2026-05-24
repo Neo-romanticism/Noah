@@ -19,9 +19,9 @@ import { getBackupFilePath } from './paths.js';
  */
 export const rotateBackups = (dataDir: string, currentFilePath: string): void => {
   // Remove the oldest backup
-  const bak3 = getBackupFilePath(dataDir, 3);
-  if (fs.existsSync(bak3)) {
-    fs.unlinkSync(bak3);
+  const oldest = getBackupFilePath(dataDir, MAX_BACKUP_COUNT);
+  if (fs.existsSync(oldest)) {
+    fs.unlinkSync(oldest);
   }
 
   // Shift backups

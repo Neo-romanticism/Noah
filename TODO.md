@@ -1,41 +1,76 @@
-# Stage 2: State Management and Persistence Layer — Implementation Progress
+# Noah — Project TODO
 
-## Objective 1: Expand NoahState Interface
-- [x] Update `src/shared/types/index.ts` with expanded `NoahState` + `MemoryEvent` types
-- [x] Update `src/shared/constants/index.ts` with new defaults and memory constants
-- [x] Update `src/shared/utils/index.ts` with new fields in `createDefaultState`, `isValidState`
-- [x] Update `tests/shared/constants.test.ts` for new constants
-- [x] Update `tests/shared/utils.test.ts` for expanded state shape
+## ✅ Completed
 
-## Objective 2: Implement MemoryEvent Type and MemoryStore
-- [x] Create `src/main/memory/types.ts` — MemoryEvent, MemoryEventType, MemoryFilter
-- [x] Create `src/main/memory/decay.ts` — Decay calculation functions
-- [x] Create `src/main/memory/index.ts` — MemoryStore class
-- [x] Create `tests/main/memory.test.ts` — MemoryStore tests
+### Stage 1: Foundation and Infrastructure
+- [x] Electron main/renderer/shared architecture
+- [x] TypeScript build pipeline (tsc for main + renderer)
+- [x] IPC channel infrastructure (state:update, state:request, action:interaction, system:metrics)
+- [x] Secure preload script with context isolation
+- [x] Three.js renderer scene setup
+- [x] Shared constants, types, utilities
+- [x] Jest test configuration
+- [x] 75 unit tests passing
 
-## Objective 3: Implement Auto-Save Persistence System
-- [x] Create `src/main/persistence/paths.ts` — Path utilities
-- [x] Create `src/main/persistence/backup.ts` — Backup rotation and recovery
-- [x] Refactor `src/main/persistence/index.ts` — AutoSaveController, saveState, loadState
-- [x] Create `tests/main/persistence.test.ts` — Persistence tests
+### Stage 2: State Management and Persistence Layer
+- [x] Expand NoahState with session tracking + needs fields
+- [x] MemoryEvent type and MemoryStore (record, retrieve, decay, persist)
+- [x] Memory decay logic (positive/neutral/negative/traumatic rates and floors)
+- [x] Auto-save persistence (debounced, graceful shutdown, periodic checkpoint)
+- [x] Backup rotation and corruption recovery (3 rotating backups)
+- [x] Session boundary detection (idle → offline → return)
+- [x] Absence reconciliation (hunger/fatigue/affection decay)
+- [x] State restoration protocol (load → reconcile → init)
+- [x] Wire MemoryStore into StateManager and IPC
+- [x] 186 unit tests passing
+- [x] Build pipeline verified (`npm run build` clean)
 
-## Objective 4: Implement Session Boundary Detection
-- [x] Create `src/main/session/detector.ts` — User presence detection
-- [x] Create `src/main/session/index.ts` — SessionTracker class
-- [x] Create `tests/main/session.test.ts` — Session tests
+### Stage 2: Code Quality & Refactoring
+- [x] **SessionTracker callback infinite loop** — `onIdle`/`onOffline` callbacks call themselves
+- [x] **StateManager totalOnlineTime never accumulates** — `totalOnlineTime` field exists but never increases
+- [x] **PresenceDetector powerMonitor listener duplication risk** — `removeAllListeners` removes ALL listeners globally
+- [x] **AutoSaveController doesn't save MemoryStore** — graceful shutdown saves state + memory separately; should be atomic
+- [x] **resolveEmotion affection branch bug** — `affection > 85` falls through to `happy` instead of `excited`
+- [x] **systemTicker timer leak on window refresh** — no deduplication if called multiple times
+- [x] **rotateBackups hardcoded to 3 backups** — logic breaks if `MAX_BACKUP_COUNT` changes
+- [x] **AutoSaveController uses structural typing for StateManager** — should import `StateManager` type directly
+- [x] **Memory context object created manually in 3 places** — extract `buildMemoryContext(state)` helper
+- [x] **Tests use `as any` for AutoSaveController mocks** — type mocks properly
+- [x] **NoahState version migration** — `version` field exists but no migration logic on load
+- [x] **Extract formatDuration helper** — `formatAbsence` in SessionTracker duplicates `Math.floor` patterns
+- [x] **Consolidate session threshold defaults** — `detector.ts` hardcodes 300_000 / 3_600_000 instead of using constants
 
-## Objective 5: Implement State Restoration Protocol
-- [x] Add `reconcileAbsence()` to `StateManager`
-- [x] Add `recordEvent()` to `StateManager`
-- [x] Wire MemoryStore into StateManager
-- [x] Create `tests/main/state.test.ts` — StateManager tests
+### Pre-Stage 3: Code-Document Consistency Fixes
+- [x] **`handleActivate` does not reinitialize AutoSave/SessionTracker** — `services` 글로벌 업데이트
+a global instance: bootstrap에서 생성한 인스턴스를 재사용
+- [x] **`sendSystemMetrics` in IPC deps is a no-op** — `IpcDeps.sendSystemMetrics` 시그니처를 `(wc, metrics) => void`로 변경, `registerIpc`
 
-## Objective 6: Wire Everything Together
-- [x] Refactor `src/main/index.ts` bootstrap sequence
-- [x] Wire AutoSaveController, SessionTracker, MemoryStore into bootstrap
-- [x] Add graceful shutdown handler
+---
 
-## Objective 7: Run Tests and Verify
-- [x] Run full test suite
-- [x] Fix any failing tests
-- [x] Verify all >150 tests pass
+## ⏳ Pending: Stage 3 Minimal Vertical Slice (CPU Load)
+
+### Goal
+- OS bridge (CPU load only) → Sensory translation → Polling → IPC push → Renderer visualization → `NoahState` systemLoad update.
+
+### Steps
+- [ ] (1) Add shared sensory translation: create `src/shared/utils/sensory.ts` with `translateCpuLoad(load)` (pure + tested)
+- [ ] (2) Add constants for thresholds + polling interval in `src/shared/constants/index.ts`
+- [ ] (3) Implement main OS bridge module (CPU load only): create `src/main/system/reader.ts`
+- [ ] (4) Implement poller (start/stop/dedup): create `src/main/system/poller.ts`
+- [ ] (5) Export system module public API: create `src/main/system/index.ts`
+- [ ] (6) Wire IPC: update `src/main/ipc/systemMetrics.ts` to actually read CPU load and push via existing channel
+- [ ] (7) Wire bootstrap/activate services: update `src/main/index.ts` to initialize `SystemPoller` and connect callbacks
+- [ ] (8) Wire renderer minimal visualization: update `src/renderer/index.ts` with a small color bar reacting to CPU load
+- [ ] (9) Add NoahState field + types: update `src/shared/types/index.ts` with `systemLoad: number` (0-100, optional or clamped)
+- [ ] (10) Tests: add
+  - [ ] `tests/shared/sensory.test.ts`
+  - [ ] `tests/main/system.test.ts` (CPU load reader mocking + poller behavior)
+- [ ] (11) Verify: run `npm test` and `npm run build`
+
+---
+
+## 🗺️ Reference (Docs)
+- Stage 3 spec: `docs/guides/tasks/STAGE-03_System_Awareness_and_Sensory_Translation.md`
+
+*Last updated: 2026-05-24*
+

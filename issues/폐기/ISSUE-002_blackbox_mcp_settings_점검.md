@@ -2,7 +2,7 @@
 issue_id: ISSUE-002
 type: 설정
 priority: 중간
-status: 진행중
+status: 폐기
 labels: [mcp, config, postman]
 related: [ISSUE-001]
 ---

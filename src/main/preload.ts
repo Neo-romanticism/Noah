@@ -1,19 +1,34 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+import type { NoahState, InteractionEvent, SystemMetrics } from '../shared/types';
+
+export interface NoahPreloadAPI {
+  getState: () => Promise<NoahState>;
+  onStateUpdate: (callback: (state: NoahState) => void) => void;
+  sendInteraction: (action: InteractionEvent) => void;
+  onSystemMetrics: (callback: (metrics: SystemMetrics) => void) => void;
+}
+
 contextBridge.exposeInMainWorld('noah', {
   // State
   getState: () => ipcRenderer.invoke('state:request'),
-  onStateUpdate: (callback: (state: unknown) => void) => {
-    ipcRenderer.on('state:update', (_event, state) => callback(state));
+  onStateUpdate: (callback: (state: NoahState) => void) => {
+    ipcRenderer.on('state:update', (_event, state) => callback(state as NoahState));
   },
 
   // Actions
-  sendInteraction: (action: unknown) => {
+  sendInteraction: (action: InteractionEvent) => {
     ipcRenderer.send('action:interaction', action);
   },
 
   // System metrics
-  onSystemMetrics: (callback: (metrics: unknown) => void) => {
-    ipcRenderer.on('system:metrics', (_event, metrics) => callback(metrics));
+  onSystemMetrics: (callback: (metrics: SystemMetrics) => void) => {
+    ipcRenderer.on('system:metrics', (_event, metrics) => callback(metrics as SystemMetrics));
   },
 });
+
+declare global {
+  interface Window {
+    noah: NoahPreloadAPI;
+  }
+}
