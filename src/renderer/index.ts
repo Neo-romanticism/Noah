@@ -1,47 +1,56 @@
 import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
-import { ramUsageColor, cpuTempColor, deriveWeather, weatherColor } from '../shared/utils/sensory.js';
+import { createScene, setupLighting, handleResize } from './scene/index.js';
+import { buildRoom } from './room/index.js';
+import { createMetricsUI, updateMetricsUI } from './ui/metrics.js';
+import { deriveWeather, weatherColor } from '../shared/utils/sensory.js';
+import { createPlaceholderAvatar, loadAvatar, updateAvatar, type LoadedAvatar } from './avatar/index.js';
 
+// ── Scene Setup ───────────────────────────────────────────────
 
 const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
 
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = null; // Transparent
+const ctx = createScene(container);
+setupLighting(ctx.scene);
+handleResize(ctx);
 
-const camera = new THREE.PerspectiveCamera(
-  50,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(0, 1, 3);
-camera.lookAt(0, 0, 0);
+// ── Room Construction ─────────────────────────────────────────
 
-const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-container.appendChild(renderer.domElement);
+const room = buildRoom(ctx);
 
-// Basic lighting
-// Background plane — reacts to system weather
-const bgGeometry = new THREE.PlaneGeometry(20, 20);
-const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
-const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-bgPlane.position.set(0, 0, -1); // behind everything
-scene.add(bgPlane);
+// ── Metrics UI (Stage 3, repositioned above the room) ─────────
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
+const metricsUI = createMetricsUI();
+ctx.scene.add(metricsUI.group);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(5, 5, 5);
-scene.add(directionalLight);
+// ── Avatar ────────────────────────────────────────────────────
 
-// Stage-01 IPC integration
+let avatar: LoadedAvatar | null = null;
+
+// Try loading FBX avatar; fallback to placeholder
+async function initAvatar(): Promise<void> {
+  const fbxPath = './assets/models/noah.fbx';
+  const loaded = await loadAvatar(ctx.scene, {
+    modelPath: fbxPath,
+    scale: 0.01,
+    position: new THREE.Vector3(0, -0.5, 0.5),
+  });
+
+  if (loaded) {
+    avatar = loaded;
+    console.log('FBX avatar loaded successfully');
+  } else {
+    avatar = createPlaceholderAvatar(ctx.scene);
+    console.log('Using placeholder avatar (no FBX model found)');
+  }
+}
+
+void initAvatar();
+
+// ── IPC Integration ───────────────────────────────────────────
+
 const noah = window.noah;
-
 if (!noah) throw new Error('Noah preload API not available');
 
 noah
@@ -53,87 +62,41 @@ noah
 
 noah.onStateUpdate((state: NoahState) => {
   console.log('NoahState update:', state);
-  // Later: update visuals/animation based on emotion/state.
+  // Future: update avatar animation/emotion based on state
 });
-
-// CPU load visualization bar
-const barGeometry = new THREE.PlaneGeometry(2, 0.1);
-const barMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
-const cpuBar = new THREE.Mesh(barGeometry, barMaterial);
-cpuBar.position.set(0, 1.5, 0);
-scene.add(cpuBar);
-
-// RAM usage visualization bar
-const ramBarGeometry = new THREE.PlaneGeometry(2, 0.1);
-const ramBarMaterial = new THREE.MeshBasicMaterial({ color: 0x60a5fa });
-const ramBar = new THREE.Mesh(ramBarGeometry, ramBarMaterial);
-ramBar.position.set(0, 1.35, 0); // below CPU bar
-scene.add(ramBar);
-
-// CPU temperature indicator dot
-const tempDotGeometry = new THREE.CircleGeometry(0.08, 32);
-const tempDotMaterial = new THREE.MeshBasicMaterial({ color: 0x9ca3af });
-const tempDot = new THREE.Mesh(tempDotGeometry, tempDotMaterial);
-tempDot.position.set(1.2, 1.5, 0); // right of CPU bar
-scene.add(tempDot);
-
 
 noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
 
-  // Update bar color based on CPU load
-  const load = metrics.cpuLoad;
-  if (load <= 30) {
-    barMaterial.color.setHex(0x4ade80); // green
-  } else if (load <= 60) {
-    barMaterial.color.setHex(0xfacc15); // yellow
-  } else if (load <= 85) {
-    barMaterial.color.setHex(0xfb923c); // orange
-  } else {
-    barMaterial.color.setHex(0xef4444); // red
-  }
+  // Update metrics bars and background
+  updateMetricsUI(metricsUI, metrics);
 
-  // Scale bar width slightly with load
-  const scaleX = 0.5 + (load / 100) * 1.5;
-  cpuBar.scale.set(scaleX, 1, 1);
-
-  // Update RAM bar
-  const ram = metrics.ramUsage;
-  const ramHex = ramUsageColor(ram);
-  ramBarMaterial.color.set(ramHex);
-
-  // Make RAM bar grow with usage
-  const ramScaleX = 0.5 + (ram / 100) * 1.5;
-  ramBar.scale.set(ramScaleX, 1, 1);
-
-  // Update temperature dot
-  const temp = metrics.cpuTemp;
-  tempDotMaterial.color.set(cpuTempColor(temp));
-
-  // Update background weather tint
+  // Also update the window "sky" color with weather
   const weather = deriveWeather(metrics);
-  bgMaterial.color.set(weatherColor(weather));
+  const winColor = weatherColor(weather);
+  (room.windowLight.material as THREE.MeshBasicMaterial).color.set(winColor);
 
   // Log process count
   console.log(`Running processes: ${metrics.processes.length}`);
 });
 
+// ── Animation Loop ────────────────────────────────────────────
 
+const clock = new THREE.Clock();
 
-// Placeholder — FBX avatar will be loaded here via FBXLoader
-console.log('Noah renderer initialized. Waiting for FBX avatar...');
-
-
-// Animation loop
-function animate() {
+function animate(): void {
   requestAnimationFrame(animate);
-  renderer.render(scene, camera);
+
+  const delta = clock.getDelta();
+
+  // Update avatar animations
+  if (avatar) {
+    updateAvatar(avatar, delta);
+  }
+
+  ctx.renderer.render(ctx.scene, ctx.camera);
 }
+
 animate();
 
-// Resize handling
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+console.log('Noah Stage 4 renderer initialized — Room, Window, Avatar pipeline ready.');

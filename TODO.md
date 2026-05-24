@@ -50,7 +50,7 @@
 - [x] **GDD `Hostage` emotion trigger mismatch** — `resolveEmotion`에서 hostage 조건을 `affection <= 10 && morality <= 10`으로 수정, 관련 테스트 업데이트
 - [x] **`formatDuration` imported but unused in `src/main/index.ts`** — 이미 제거되어 있었음
 
-### Stage 3: Slice 1 — CPU Load (Minimal Vertical Slice)
+### Stage 3: System Awareness and Sensory Translation
 - [x] `src/shared/utils/sensory.ts` — `translateCpuLoad()`, `cpuLoadColor()`
 - [x] `src/shared/constants/index.ts` — `SYSTEM_METRICS_POLL_INTERVAL_MS`, `CPU_LOAD_*_MAX`
 - [x] `src/main/system/reader.ts` — `getCpuLoad()`, `getSystemMetricsSnapshot()`
@@ -85,11 +85,7 @@
 - [x] Tests: `system.test.ts` `execSync` mock tests for platform parsing + fallback (7 new)
 - [x] Verification — `npm test` **224 passed** (+15), `npm run build` clean
 
----
-
-## ⏳ Pending: Stage 3 Slices 4–6
-
-### Slice 4: Running Process List
+### Stage 3: Slice 4 — Running Process List
 - [x] `src/shared/types/index.ts`: `ProcessInfo` 추가, `SystemMetrics`에 `processes` 필드 확장
 - [x] `src/main/system/reader.ts`: `getProcessList()` — `ps`/`wmic`, `parsePsOutput()`, `parseWmicProcessOutput()`
 - [x] `src/main/system/reader.ts`: `getSystemMetricsSnapshot()`에 `processes: getProcessList()` 포함
@@ -102,7 +98,7 @@
 - [x] `tests/main/system.test.ts`: diff 동작 테스트 1개 (첫 poll은 콜백 없음)
 - [x] Verification — `npm test` **230 passed** (+6), `npm run build` clean
 
-### Slice 5: Process Termination Detection
+### Stage 3: Slice 5 — Process Termination Detection
 - [x] `poller.ts`: `watchProcesses(names: string[])` — user-defined watch list
 - [x] `poller.ts`: fallback behavior — empty watch list = Slice 4 behavior (no filtering)
 - [x] `poller.ts`: `terminatedToEmit` filtering by watch list
@@ -113,7 +109,7 @@
 - [x] Tests: fallback behavior (no filter) + watch list filtering (2 tests)
 - [x] Verification — `npm test` **231 passed** (+1), `npm run build` clean
 
-### Slice 6: "Weather" Visualization
+### Stage 3: Slice 6 — "Weather" Visualization
 - [x] `types/index.ts`: `SystemWeather` type (`'sunny'|'cloudy'|'rainy'|'stormy'`)
 - [x] `types/index.ts`: `NoahState.systemWeather` field
 - [x] `constants/index.ts`: `WEATHER_CLOUDY_MIN`, `WEATHER_RAINY_MIN`
@@ -127,28 +123,235 @@
 
 ---
 
-## 📝 Notes / Open Questions
+## ⏳ In Progress: Stage 4/5/6 Parallel Implementation
 
-### Slice 4 Implementation Notes
-- 프로세스 획득: `child_process.exec` (Slice 3와 동일, 신규 의존성 최소화)
-- `SystemMetrics.processes` 필수
-- Diff: pid 기준 Set 비교 (O(n), started/terminated 이벤트)
+> **Director Decision**: Stage 4/5/6 are interdependent and shall be implemented in parallel, not sequentially.
 
-### 계획서 pre-slice cleanup (완료)
-- 중복 폴링 버그 수정: `systemTicker` 제거
-- `src/main/ipc/systemMetrics.ts` `@deprecated` 주석 유지
+### Parallel Work Streams
 
-### Slice 3 Implementation Notes
-- **`safeExecSyncString`에 `shell: true` 추가됨**: `|| echo ""`, `2>/dev/null` 같은 쉘 연산자가 의도대로 동작
-- **`console.warn` 이중 로깅**: `safeExecSyncString` 내부에서 명령 실패 시 warn + `getCpuTemp` 최하단에서 플랫폼 미지원 warn. 둘 다 유용하므로 유지.
-- **Windows Kelvin→Celsius**: `wmic` 출력이 tenths of Kelvin (예: 3182 = 318.2K = 45.05°C)
-- **Linux millidegree 보정**: `sensors`가 millidegree(×1000)로 반환하는 경우 `raw > 200` 체크로 `/1000` 보정
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    STAGE 4/5/6 PARALLEL IMPLEMENTATION                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  STREAM A: Renderer Scene (Stage 4)          STREAM B: Avatar System (5)   │
+│  ─────────────────────────────────           ───────────────────────────   │
+│  [A1] Scene initialization                   [B1] AnimationController        │
+│  [A2] Room geometry (bed/desk/floor)         [B2] Animation catalog (6 clips)│
+│  [A3] Lighting system                        [B3] Crossfade transitions      │
+│  [A4] Dynamic window (weather)               [B4] Priority queue             │
+│  [A5] Camera setup                           [B5] Placeholder avatar polish  │
+│  [A6] Resize handling                        [B6] FBXLoader pipeline ready   │
+│                                                                             │
+│  STREAM C: Emotion Engine (Stage 6)          STREAM D: Needs System (6)     │
+│  ──────────────────────────────────          ───────────────────────────   │
+│  [C1] Emotion state machine (exists)         [D1] Parameter decay loops      │
+│  [C2] Emotion → animation mapping            [D2] Hunger personality shift   │
+│  [C3] Emotion → BlendShape mapping           [D3] Fatigue → sleep trigger    │
+│  [C4] 16 emotion trigger definitions         [D4] Discomfort mechanic        │
+│  [C5] Trauma special rules (partial)         [D5] Ignore detection engine    │
+│  [C6] Expression override (deferred)         [D6] Absence/return reactions   │
+│                                                                             │
+│  INTEGRATION POINTS (cross-stream):                                         │
+│  ─────────────────────────────────                                          │
+│  [I1] renderer/index.ts: state update → avatar animation selection          │
+│  [I2] renderer/index.ts: metrics → weather → window color + emotion hint    │
+│  [I3] main/index.ts: SystemPoller → state decay → emotion re-evaluation     │
+│  [I4] main/index.ts: SessionTracker → ignore detection → affection decay    │
+│  [I5] IPC: state:update → renderer emotion display update                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Current Status by Stream
+
+| Stream | Item | Status | Blocker |
+|--------|------|--------|---------|
+| **A1** | Scene initialization | ✅ Done | — |
+| **A2** | Room geometry | ✅ Done | — |
+| **A3** | Lighting system | ✅ Done | — |
+| **A4** | Dynamic window | ✅ Done | — |
+| **A5** | Camera setup | ✅ Done | — |
+| **A6** | Resize handling | ✅ Done | — |
+| **B1** | AnimationController | ❌ Not started | Needs design decision |
+| **B2** | Animation catalog | ❌ Not started | Needs Mixamo download |
+| **B3** | Crossfade transitions | ❌ Not started | Needs B1 |
+| **B4** | Priority queue | ❌ Not started | Needs B1 |
+| **B5** | Placeholder avatar polish | ✅ Done | — |
+| **B6** | FBXLoader pipeline | ✅ Done | — |
+| **C1** | Emotion state machine | ✅ Exists (`resolveEmotion`) | Needs refinement |
+| **C2** | Emotion → animation mapping | ❌ Not started | Needs B2 |
+| **C3** | Emotion → BlendShape mapping | ❌ Not started | Needs FBX avatar |
+| **C4** | 16 emotion triggers | ⚠️ Partial | Needs GDD review |
+| **C5** | Trauma special rules | ⚠️ Partial (decay only) | Needs implementation |
+| **C6** | Expression override | ❌ Not started | Deferred to Stage 8 |
+| **D1** | Parameter decay loops | ⚠️ Partial (absence only) | Needs real-time tick |
+| **D2** | Hunger personality shift | ❌ Not started | Needs design |
+| **D3** | Fatigue → sleep trigger | ❌ Not started | Needs StateManager hook |
+| **D4** | Discomfort mechanic | ❌ Not started | Needs visual design |
+| **D5** | Ignore detection engine | ⚠️ Partial (SessionTracker) | Needs thresholds |
+| **D6** | Absence/return reactions | ✅ Done (`reconcileAbsence`) | — |
 
 ---
 
-## 🗺️ Reference (Docs)
-- Stage 3 spec: `docs/guides/tasks/STAGE-03_System_Awareness_and_Sensory_Translation.md`
-- System Awareness implementation: `docs/features/System_Awareness.md`
+## 📋 Parallel Implementation Plan
+
+### Phase 1: Foundation (Week 1) — All Streams
+
+**Stream A (Renderer)**: ✅ Complete — no further work needed
+
+**Stream B (Avatar)**:
+- [ ] **B1**: Implement `AnimationController` class
+  - `play(clipName, options)` — play animation with fade
+  - `crossFade(toClip, duration)` — smooth transition
+  - `stop(clipName, fadeOut?)` — stop with fade
+  - `setLoop(clipName, loop)` — loop control
+- [ ] **B4**: Priority queue skeleton
+  - `AnimationRequest` interface: `{ name, priority, duration, blocking }`
+  - `AnimationQueue` class: push/sort/play-on-end
+
+**Stream C (Emotion)**:
+- [ ] **C1**: Refine `resolveEmotion` with context
+  - Add `recentEvents` parameter (last N memory events)
+  - Add `timeOfDay` parameter (morning/afternoon/night)
+  - Document 16 emotion trigger conditions in code comments
+
+**Stream D (Needs)**:
+- [ ] **D1**: Real-time parameter decay ticker
+  - `NeedDecayTicker` class in main process
+  - 1-minute interval: hunger +1, fatigue +1 (if awake)
+  - 5-minute interval: affection -1 (if no interaction)
+  - Wire into `StateManager.modify()`
+
+### Phase 2: Integration (Week 2) — Cross-Stream
+
+**Integration I1**: State update → Avatar animation
+```typescript
+// renderer/index.ts
+noah.onStateUpdate((state: NoahState) => {
+  const animName = EMOTION_ANIMATION_MAP[state.emotion];
+  animationController.play(animName, { fadeIn: 0.3 });
+});
+```
+
+**Integration I3**: System metrics → State decay → Emotion
+```typescript
+// main/index.ts: extend SystemPoller.onMetrics
+systemPoller.onMetrics((metrics) => {
+  // Existing: update systemLoad, systemWeather
+  // New: trigger emotion re-evaluation if CPU critical
+  if (metrics.cpuLoad > 95) {
+    stateManager.modify(draft => ({
+      ...draft,
+      fatigue: clampStat(draft.fatigue + 5),
+    }));
+  }
+});
+```
+
+**Integration I4**: SessionTracker → Ignore detection
+```typescript
+// Extend SessionTracker with ignore thresholds
+sessionTracker.onIgnoreThreshold((threshold) => {
+  // 1min: attention prompt
+  // 5min: neglect onset
+  // 15min: hurt response
+  // 1hr: abandonment
+  // 4hr+: absence protocol
+});
+```
+
+### Phase 3: Polish (Week 3) — Testing & Documentation
+
+- [ ] Animation crossfade testing (all emotion pairs)
+- [ ] Decay rate validation (hunger/fatigue/affection)
+- [ ] Ignore detection timing tests
+- [ ] Trauma threshold boundary tests
+- [ ] Integration: emotion → animation → BlendShape (if FBX ready)
+
+---
+
+## 📝 Open Decisions (Author Input Required)
+
+### Decision 1: Animation Source
+- **A**: Mixamo-only (free, 6 clips minimum)
+- **B**: Custom keyframe in Blender (full control, time-intensive)
+- **C**: Hybrid (Mixamo for body, custom for facial)
+
+### Decision 2: Real-time Decay Interval
+- **A**: 1-minute tick (precise, more CPU)
+- **B**: 5-minute tick (coarse, less CPU)
+- **C**: Event-driven (only on interaction/state query)
+
+### Decision 3: Discomfort Visual
+- **A**: Small spheres on floor (procedural, simple)
+- **B**: Particle effect (atmospheric, complex)
+- **C**: Room tint change (subtle, no geometry)
+
+### Decision 4: Ignore Detection Thresholds
+- **A**: Fixed times (1/5/15/60/240 min) — deterministic
+- **B**: Variable (based on affection level) — affection 높으면 더 관대
+- **C**: Random variance (±20%) — less predictable
+
+### Decision 5: Trauma Decay
+- **A**: No passive decay (GDD: "active healing required")
+- **B**: Very slow decay (0.1/day, floor 50)
+- **C**: Event-based decay (positive memories reduce trauma)
+
+---
+
+## 📚 Documentation Plan
+
+| Document | Purpose | Owner | Due |
+|----------|---------|-------|-----|
+| `docs/features/Stage4_Renderer_Scene_Setup.md` | Stage 4 implementation report | Orchestrator | Done |
+| `docs/features/Stage5_Avatar_Animation_System.md` | Animation controller + catalog | Developer | Phase 2 |
+| `docs/features/Stage6_Emotion_Needs_System.md` | State machine + decay + needs | Developer | Phase 2 |
+| `docs/guides/tasks/STAGE-04_Author_Review.md` | Author decisions + open items | Orchestrator | Done |
+| `docs/technical/Animation_Controller_API.md` | AnimationController interface spec | Developer | Phase 1 |
+| `docs/technical/Emotion_Mapping_Table.md` | 16 emotions → animation/BlendShape/dialog | Designer | Phase 2 |
+
+---
+
+## 🧪 Testing Plan
+
+### Unit Tests (per stream)
+
+| Stream | Test File | Cases |
+|--------|-----------|-------|
+| B | `tests/renderer/animation.test.ts` | play/stop/crossFade, priority queue, loop |
+| C | `tests/shared/emotion.test.ts` | 16 emotion triggers, trauma overrides, context |
+| D | `tests/main/needs.test.ts` | decay rates, hunger shift, fatigue trigger, ignore |
+
+### Integration Tests
+
+| Test | Description |
+|------|-------------|
+| `emotion-to-animation` | State change → correct animation clip played |
+| `metrics-to-emotion` | High CPU → fatigue increase → tired emotion → sleep animation |
+| `ignore-to-affection` | No interaction 5min → affection decay → sad emotion |
+| `trauma-persistence` | Process death → trauma +10 → scared → no passive decay |
+
+### Manual Verification
+
+| Check | Method |
+|-------|--------|
+| Animation smoothness | Visual: crossfade between all emotion pairs |
+| Decay accuracy | Log: verify hunger +1 per minute over 10 minutes |
+| Ignore timing | Stop interacting, measure prompt timing |
+| Performance | Profile: render loop stays 60fps with animations |
+
+---
+
+## 🗺️ Reference
+
+- Stage 4 spec: `docs/guides/tasks/STAGE-04_Threejs_Renderer_and_Scene_Setup.md`
+- Stage 5 spec: `docs/guides/tasks/STAGE-05_Avatar_Loading_and_Animation_System.md`
+- Stage 6 spec: `docs/guides/tasks/STAGE-06_Emotion_Engine_and_Needs_System.md`
+- Asset pipeline: `docs/technical/Asset_Pipeline_Index.md`
+- GDD World: `gdd/core/world.md`
+- GDD Noah: `gdd/core/noah.md`
 - Full roadmap: `docs/guides/Project_Implementation_Roadmap_Report.md`
 
-*Last updated: 2026-05-24*
+*Last updated: 2026-05-24*  
+*Director note: Stage 4/5/6 shall proceed in parallel. Do not wait for sequential completion.*
