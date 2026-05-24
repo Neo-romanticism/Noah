@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 
-import { systemTicker } from './ipc/systemMetrics';
+
 import { registerIpc, trackWindowForIpc } from './ipc';
 import { StateManager } from './state';
 import { MemoryStore } from './memory';
@@ -56,9 +56,6 @@ const createWindow = (stateManager: StateManager): BrowserWindow => {
 
   void mainWindow.loadFile(HTML_PATH);
 
-  // System metrics -> renderer
-  systemTicker(mainWindow.webContents);
-
   // State change -> renderer
   stateManager.onStateChange((state) => {
     mainWindow.webContents.send('state:update', state);
@@ -69,7 +66,7 @@ const createWindow = (stateManager: StateManager): BrowserWindow => {
 
 const handleActivate = (): void => {
   if (BrowserWindow.getAllWindows().length === 0 && services !== null) {
-    const { stateManager, systemPoller } = services;
+    const { stateManager } = services;
 
     registerIpc({
       getState: () => stateManager.getState(),
@@ -80,14 +77,6 @@ const handleActivate = (): void => {
       sendSystemMetrics: (wc, metrics) => {
         wc.send('system:metrics', metrics);
       },
-    });
-
-    // Re-register system poller callback for the new window
-    systemPoller.onMetrics((metrics) => {
-      const wins = BrowserWindow.getAllWindows();
-      for (const win of wins) {
-        win.webContents.send('system:metrics', metrics);
-      }
     });
 
     createWindow(stateManager);

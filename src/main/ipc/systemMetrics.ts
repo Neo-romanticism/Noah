@@ -5,6 +5,11 @@ import { SystemPoller } from '../system/poller.js';
 const activePollers = new WeakMap<WebContents, SystemPoller>();
 
 /**
+ * @deprecated This module is no longer used. System metrics polling is now
+ * managed centrally by a single SystemPoller in main/index.ts to prevent
+ * duplicate IPC transmissions. Kept for reference; safe to remove once
+ * Slice 4+ confirms no external consumers.
+ *
  * Start a system metrics ticker for the given WebContents.
  *
  * Uses SystemPoller (real OS metrics) instead of placeholder values.
