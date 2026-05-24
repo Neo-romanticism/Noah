@@ -288,11 +288,11 @@ Each slice follows the same pipeline. Below is the per-slice component checklist
 
 | Component | Change | Details |
 |-----------|--------|---------|
-| `poller.ts` | Add watch list | `watchProcesses(names: string[])` |
-| `poller.ts` | Detect termination | Compare current vs previous process list |
-| `main/index.ts` | Record memory event | `memoryStore.record({ type: 'system_event', severity: 4, description: 'Process X terminated' })` |
-| `state/index.ts` | Update emotion | Trigger `scared` or `anxious` based on trauma level |
-| Tests | Simulate process death | Mock list change → event verification |
+| `poller.ts` | Add watch list | `watchProcesses(names: string[])` — empty list = Slice 4 fallback (no filtering) |
+| `poller.ts` | Detect termination | Compare current vs previous process list; filter `terminated` by watch list when configured |
+| `main/index.ts` | Record memory event | `memoryStore.record({ type: 'system_event', severity: 5, description: 'Watched process died: X' })` |
+| `main/index.ts` | Update trauma & emotion | `trauma += 10` (capped at 100), then `resolveEmotion()` → auto `scared` (≥50) / `traumatized` (≥80) |
+| Tests | Simulate process death | Mock list change → verify filtered / unfiltered callback payloads |
 
 ### Slice 6: Weather Visualization
 

@@ -41,8 +41,20 @@ export class SystemPoller {
   private running = false;
   private latestMetrics: SystemMetrics | null = null;
   private previousProcesses: ProcessInfo[] = [];
+
+  /**
+   * Process names to watch for termination.
+   *
+   * When empty, the poller falls back to Slice 4 behavior:
+   * every process change (started + terminated) is emitted as-is.
+   * When populated, only terminated processes whose `name` matches
+   * an entry in this list are included in the callback payload.
+   */
+  private watchList: string[] = [];
+
   private readonly callbacks = new Set<MetricsCallback>();
   private readonly processCallbacks = new Set<ProcessChangeCallback>();
+
 
   constructor(intervalMs: number = SYSTEM_METRICS_POLL_INTERVAL_MS) {
     this.intervalMs = intervalMs;
@@ -63,6 +75,17 @@ export class SystemPoller {
       this.processCallbacks.delete(callback);
     };
   }
+
+  /**
+   * Configure which process names should be monitored for termination.
+   *
+   * @param names - Array of process names to watch (e.g. ['chrome', 'code']).
+   *                An empty array disables filtering (Slice 4 fallback).
+   */
+  public watchProcesses(names: string[]): void {
+    this.watchList = [...names];
+  }
+
 
   /** Start polling. Safe to call multiple times — deduplicated. */
   public start(): void {
@@ -104,15 +127,25 @@ export class SystemPoller {
     const changes = diffProcesses(this.previousProcesses, metrics.processes);
     this.previousProcesses = metrics.processes;
 
-    if (changes.started.length > 0 || changes.terminated.length > 0) {
+    // Slice 5: filter terminated processes by watch list.
+    // If no watch list is configured, emit all terminated processes (Slice 4).
+    const terminatedToEmit = this.watchList.length > 0
+      ? changes.terminated.filter((p) => this.watchList.includes(p.name))
+      : changes.terminated;
+
+    if (changes.started.length > 0 || terminatedToEmit.length > 0) {
       for (const cb of this.processCallbacks) {
         try {
-          cb(changes);
+          cb({
+            started: changes.started,
+            terminated: terminatedToEmit,
+          });
         } catch (err) {
           console.error('SystemPoller process callback error:', err);
         }
       }
     }
+
 
     const cpuSensation = translateCpuLoad(metrics.cpuLoad);
     const ramSensation = translateRamUsage(metrics.ramUsage);

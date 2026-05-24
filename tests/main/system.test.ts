@@ -265,18 +265,90 @@ describe('SystemPoller + reader', () => {
     });
   });
 
+  /**
+   * Slice 5: watched-process termination detection.
+   *
+   * When watchProcesses() is configured, only terminated processes whose
+   * name appears in the watch list are emitted. When unset, all process
+   * changes fall back to Slice 4 behavior (no filtering).
+   */
   describe('SystemPoller process diff', () => {
-    it('emits started processes on poll', () => {
+    it('falls back to Slice 4 behavior when watchProcesses is not set (terminated not filtered)', () => {
       const poller = new SystemPoller(1000);
       const processCb = jest.fn();
 
       poller.onProcessChange(processCb);
 
-      // First poll establishes baseline
+      const baseline = [{ pid: 1, name: 'other' }];
+      const next = [{ pid: 2, name: 'something' }];
+
+      // Mock two sequential snapshots so diff sees a terminated process.
+      jest
+        .spyOn(require('../../src/main/system/reader.js'), 'getSystemMetricsSnapshot')
+        .mockImplementationOnce(() => ({
+          cpuTemp: 0,
+          cpuLoad: 0,
+          ramUsage: 0,
+          uptime: 0,
+          processes: baseline,
+        }))
+        .mockImplementationOnce(() => ({
+          cpuTemp: 0,
+          cpuLoad: 0,
+          ramUsage: 0,
+          uptime: 0,
+          processes: next,
+        }));
+
       poller.start();
-      expect(processCb).not.toHaveBeenCalled(); // No diff on first poll
+      jest.advanceTimersByTime(1000);
+
+      expect(processCb).toHaveBeenCalled();
+      // With no watch list, the terminated process should be present.
+      const lastCallArg = processCb.mock.calls.at(-1)![0];
+      expect(lastCallArg.terminated.map((p: any) => p.pid)).toContain(1);
 
       poller.stop();
     });
+
+    it('filters terminated processes when watchProcesses is set', () => {
+      const poller = new SystemPoller(1000);
+      const processCb = jest.fn();
+
+      poller.watchProcesses(['target-app']);
+      poller.onProcessChange(processCb);
+
+      const baseline = [{ pid: 1, name: 'other-app' }];
+      const next = [{ pid: 2, name: 'target-app' }];
+
+      const listSpy = jest
+        .spyOn(require('../../src/main/system/reader.js'), 'getSystemMetricsSnapshot')
+        .mockImplementationOnce(() => ({
+          cpuTemp: 0,
+          cpuLoad: 0,
+          ramUsage: 0,
+          uptime: 0,
+          processes: baseline,
+        }))
+        .mockImplementationOnce(() => ({
+          cpuTemp: 0,
+          cpuLoad: 0,
+          ramUsage: 0,
+          uptime: 0,
+          processes: next,
+        }));
+
+      poller.start();
+      jest.advanceTimersByTime(1000);
+
+      // 'other-app' terminated but is NOT in the watch list, so
+      // terminatedToEmit should be empty even though started is non-empty.
+      const callArg = processCb.mock.calls[0]![0];
+      expect(callArg.terminated).toEqual([]);
+
+      listSpy.mockRestore();
+      poller.stop();
+    });
   });
+
 });

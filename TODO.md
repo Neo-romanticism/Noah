@@ -103,11 +103,15 @@
 - [x] Verification — `npm test` **230 passed** (+6), `npm run build` clean
 
 ### Slice 5: Process Termination Detection
-- [ ] `poller.ts`: `watchProcesses(names: string[])` — user-defined watch list
-- [ ] `poller.ts`: detect termination (compare current vs previous list)
-- [ ] `main/index.ts`: record `system_event` memory event on termination
-- [ ] `state/index.ts`: update emotion — `scared`/`anxious` based on trauma
-- [ ] Tests: simulate process death → event verification
+- [x] `poller.ts`: `watchProcesses(names: string[])` — user-defined watch list
+- [x] `poller.ts`: fallback behavior — empty watch list = Slice 4 behavior (no filtering)
+- [x] `poller.ts`: `terminatedToEmit` filtering by watch list
+- [x] `main/index.ts`: `watchProcesses(['chrome', 'code', 'node'])` example setup
+- [x] `main/index.ts`: record `system_event` memory event on watched termination (severity 5)
+- [x] `main/index.ts`: trauma +10 per death via `clampStat()`, re-resolve emotion
+- [x] `docs/features/System_Awareness.md`: Slice 5 table updated (severity, fallback, trauma logic)
+- [x] Tests: fallback behavior (no filter) + watch list filtering (2 tests)
+- [x] Verification — `npm test` **231 passed** (+1), `npm run build` clean
 
 ### Slice 6: "Weather" Visualization
 - [ ] **Contract first**: define `SystemWeather` type (`'sunny'|'cloudy'|'rainy'|'stormy'`)

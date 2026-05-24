@@ -9,7 +9,8 @@ import { ensureDataDir, loadState, AutoSaveController } from './persistence';
 import { getDataPath } from './persistence/paths.js';
 import { SessionTracker } from './session';
 import { SystemPoller } from './system/poller.js';
-import { buildMemoryContext } from '../shared/utils/index.js';
+import { buildMemoryContext, resolveEmotion, clampStat } from '../shared/utils/index.js';
+
 
 interface AppServices {
   stateManager: StateManager;
@@ -139,8 +140,12 @@ const bootstrap = async (): Promise<void> => {
   );
   sessionTracker.start();
 
-  // 8.5 Initialize SystemPoller (CPU load only for Stage 3 slice)
+  // 8.5 Initialize SystemPoller
   const systemPoller = new SystemPoller();
+
+  // Slice 5: watched-process configuration (used for termination trauma/emotion updates)
+  systemPoller.watchProcesses(['chrome', 'code', 'node']);
+
   systemPoller.onMetrics((metrics, sensation) => {
     // Update state with current CPU load
     stateManager.modify((draft) => ({
@@ -158,14 +163,31 @@ const bootstrap = async (): Promise<void> => {
 
   systemPoller.onProcessChange((changes) => {
     for (const proc of changes.terminated) {
+      const currentState = stateManager.getState();
+
       memoryStore.record({
         type: 'system_event',
-        severity: 2,
-        context: buildMemoryContext(stateManager.getState()),
-        description: `Process terminated: ${proc.name} (pid ${proc.pid})`,
+        severity: 5,
+        context: buildMemoryContext(currentState),
+        description: `Watched process died: ${proc.name} (pid ${proc.pid})`,
+      });
+
+      stateManager.modify((draft) => {
+        // Increase trauma by 10 per watched process death, capped at STAT_MAX (100).
+        const newTrauma = clampStat(draft.trauma + 10);
+        // Re-evaluate emotion so that trauma thresholds automatically push
+        // Noah toward 'scared' (≥50) or 'traumatized' (≥80).
+        const nextEmotion = resolveEmotion({ ...draft, trauma: newTrauma });
+
+        return {
+          ...draft,
+          trauma: newTrauma,
+          emotion: nextEmotion,
+        };
       });
     }
   });
+
 
   systemPoller.start();
 
