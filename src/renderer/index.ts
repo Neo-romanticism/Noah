@@ -102,6 +102,9 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   // Update temperature dot
   const temp = metrics.cpuTemp;
   tempDotMaterial.color.set(cpuTempColor(temp));
+
+  // Log process count
+  console.log(`Running processes: ${metrics.processes.length}`);
 });
 
 

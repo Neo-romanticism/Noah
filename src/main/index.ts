@@ -155,6 +155,18 @@ const bootstrap = async (): Promise<void> => {
 
     console.log(`[System] CPU load: ${metrics.cpuLoad}% — Noah feels ${sensation}`);
   });
+
+  systemPoller.onProcessChange((changes) => {
+    for (const proc of changes.terminated) {
+      memoryStore.record({
+        type: 'system_event',
+        severity: 2,
+        context: buildMemoryContext(stateManager.getState()),
+        description: `Process terminated: ${proc.name} (pid ${proc.pid})`,
+      });
+    }
+  });
+
   systemPoller.start();
 
   // Store references for reinitialization on activate

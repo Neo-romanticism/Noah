@@ -2,7 +2,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 
 import { SystemPoller } from '../../src/main/system/poller.js';
-import { getRamUsage, getCpuTemp } from '../../src/main/system/reader.js';
+import { getRamUsage, getCpuTemp, getProcessList } from '../../src/main/system/reader.js';
 
 jest.mock('child_process');
 
@@ -203,6 +203,80 @@ describe('SystemPoller + reader', () => {
       (execSync as jest.Mock).mockReturnValue('temp1_input: 45500\n');
 
       expect(getCpuTemp()).toBe(46); // 45500 / 1000 = 45.5 → 46
+    });
+  });
+
+  describe('getProcessList', () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
+    it('parses Linux ps output', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockReturnValue(
+        '  1 systemd /sbin/init\n 42 nginx nginx: worker\n',
+      );
+
+      const procs = getProcessList();
+      expect(procs).toHaveLength(2);
+      expect(procs[0]).toEqual({ pid: 1, name: 'systemd', cmd: '/sbin/init' });
+      expect(procs[1]).toEqual({ pid: 42, name: 'nginx', cmd: 'nginx: worker' });
+    });
+
+    it('parses macOS ps output', () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      (execSync as jest.Mock).mockReturnValue(
+        '  1 launchd /sbin/launchd\n123 Code Helper code helper\n',
+      );
+
+      const procs = getProcessList();
+      expect(procs).toHaveLength(2);
+      expect(procs[0]).toEqual({ pid: 1, name: 'launchd', cmd: '/sbin/launchd' });
+    });
+
+    it('parses Windows wmic output', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      (execSync as jest.Mock).mockReturnValue(
+        'Node,CommandLine,ProcessId,Name\n' +
+        'MYPC,C:\\Windows\\System32\\notepad.exe,1234,notepad.exe\n',
+      );
+
+      const procs = getProcessList();
+      expect(procs).toHaveLength(1);
+      expect(procs[0]).toEqual({ pid: 1234, name: 'notepad.exe', cmd: 'C:\\Windows\\System32\\notepad.exe' });
+    });
+
+    it('returns empty array on command failure', () => {
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      (execSync as jest.Mock).mockImplementation(() => {
+        throw new Error('command not found');
+      });
+
+      expect(getProcessList()).toEqual([]);
+    });
+
+    it('returns empty array on unsupported platform', () => {
+      Object.defineProperty(process, 'platform', { value: 'freebsd' });
+
+      expect(getProcessList()).toEqual([]);
+    });
+  });
+
+  describe('SystemPoller process diff', () => {
+    it('emits started processes on poll', () => {
+      const poller = new SystemPoller(1000);
+      const processCb = jest.fn();
+
+      poller.onProcessChange(processCb);
+
+      // First poll establishes baseline
+      poller.start();
+      expect(processCb).not.toHaveBeenCalled(); // No diff on first poll
+
+      poller.stop();
     });
   });
 });

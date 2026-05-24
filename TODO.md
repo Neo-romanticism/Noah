@@ -90,13 +90,17 @@
 ## ⏳ Pending: Stage 3 Slices 4–6
 
 ### Slice 4: Running Process List
-- [ ] `types/index.ts`: `ProcessInfo` interface (`pid`, `name`, `cmd`)
-- [ ] `types/index.ts`: extend `SystemMetrics` — `processes: ProcessInfo[]`
-- [ ] `reader.ts`: `getProcessList()` — `ps-list` or `child_process.exec('ps')`
-- [ ] `reader.ts`: `getSystemMetricsSnapshot()` — include processes
-- [ ] `poller.ts`: process list diff between polls
-- [ ] `poller.ts`: `onProcessChange(cb)` callback
-- [ ] Tests: mock process list + diff verification
+- [x] `src/shared/types/index.ts`: `ProcessInfo` 추가, `SystemMetrics`에 `processes` 필드 확장
+- [x] `src/main/system/reader.ts`: `getProcessList()` — `ps`/`wmic`, `parsePsOutput()`, `parseWmicProcessOutput()`
+- [x] `src/main/system/reader.ts`: `getSystemMetricsSnapshot()`에 `processes: getProcessList()` 포함
+- [x] `src/main/system/poller.ts`: `diffProcesses()` — pid 기준 Set 비교, started/terminated 반환
+- [x] `src/main/system/poller.ts`: `onProcessChange()` 콜백 등록/발행 (첫 poll은 baseline, diff 없음)
+- [x] `src/main/index.ts`: `onProcessChange` → `memoryStore.record('system_event')` (terminated 프로세스)
+- [x] `src/main/ipc/index.ts`: 초기 metrics에 `processes: []` 추가 (빌드 에러 수정)
+- [x] `src/renderer/index.ts`: `metrics.processes.length` 로그
+- [x] `tests/main/system.test.ts`: 프로세스 파싱 테스트 5개 (Linux/macOS/Windows/실패/미지원)
+- [x] `tests/main/system.test.ts`: diff 동작 테스트 1개 (첫 poll은 콜백 없음)
+- [x] Verification — `npm test` **230 passed** (+6), `npm run build` clean
 
 ### Slice 5: Process Termination Detection
 - [ ] `poller.ts`: `watchProcesses(names: string[])` — user-defined watch list
@@ -118,6 +122,15 @@
 ---
 
 ## 📝 Notes / Open Questions
+
+### Slice 4 Implementation Notes
+- 프로세스 획득: `child_process.exec` (Slice 3와 동일, 신규 의존성 최소화)
+- `SystemMetrics.processes` 필수
+- Diff: pid 기준 Set 비교 (O(n), started/terminated 이벤트)
+
+### 계획서 pre-slice cleanup (완료)
+- 중복 폴링 버그 수정: `systemTicker` 제거
+- `src/main/ipc/systemMetrics.ts` `@deprecated` 주석 유지
 
 ### Slice 3 Implementation Notes
 - **`safeExecSyncString`에 `shell: true` 추가됨**: `|| echo ""`, `2>/dev/null` 같은 쉘 연산자가 의도대로 동작

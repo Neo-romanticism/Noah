@@ -48,11 +48,18 @@ export type Emotion =
   | 'jealous'
   | 'hostage';
 
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  cmd?: string;
+}
+
 export interface SystemMetrics {
   cpuTemp: number;
   cpuLoad: number;
   ramUsage: number;
   uptime: number;
+  processes: ProcessInfo[];
 }
 
 export interface InteractionEvent {

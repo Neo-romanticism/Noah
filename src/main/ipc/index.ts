@@ -34,6 +34,7 @@ export const registerIpc = (deps: IpcDeps): void => {
       cpuLoad: 0,
       ramUsage: 0,
       uptime: Math.floor(process.uptime()),
+      processes: [],
     };
     deps.sendSystemMetrics(wc, metrics);
   };

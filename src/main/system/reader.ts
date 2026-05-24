@@ -7,7 +7,7 @@
 import os from 'os';
 import { execSync } from 'child_process';
 
-import type { SystemMetrics } from '../../shared/types/index.js';
+import type { SystemMetrics, ProcessInfo } from '../../shared/types/index.js';
 
 /**
  * Calculate CPU load as a percentage (0-100).
@@ -135,6 +135,97 @@ const tempBlockStr = tempMatch ? tempMatch[0] : '';
 };
 
 /**
+ * Parse ps -eo output (Linux/macOS) into ProcessInfo array.
+ * Format: PID COMMAND ARGS...
+ */
+const parsePsOutput = (output: string): ProcessInfo[] => {
+  const lines = output.trim().split('\n');
+  const processes: ProcessInfo[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Match: leading spaces, pid (digits), space, command (non-space), space, rest (args)
+    const match = trimmed.match(/^\s*(\d+)\s+(\S+)\s+(.+)$/);
+    if (match) {
+      const pidStr = match[1];
+      const nameStr = match[2];
+      const cmdStr = match[3];
+      if (pidStr && nameStr) {
+        processes.push({
+          pid: parseInt(pidStr, 10),
+          name: nameStr,
+          cmd: cmdStr?.trim() ?? '',
+        });
+      }
+    }
+  }
+
+  return processes;
+};
+
+/**
+ * Parse wmic process output (Windows) into ProcessInfo array.
+ * Format: CSV with Node,CommandLine,ProcessId,Name headers.
+ */
+const parseWmicProcessOutput = (output: string): ProcessInfo[] => {
+  const lines = output.trim().split('\n');
+  const processes: ProcessInfo[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('Node')) continue;
+
+    // CSV format: NODE,CommandLine,ProcessId,Name
+    const parts = trimmed.split(',');
+    if (parts.length >= 4) {
+      const pidStr = parts[2];
+      const nameStr = parts[3];
+      const cmdStr = parts[1];
+      if (pidStr && nameStr) {
+        const pid = parseInt(pidStr, 10);
+        if (!Number.isNaN(pid)) {
+          processes.push({ pid, name: nameStr.trim(), cmd: cmdStr?.trim() ?? '' });
+        }
+      }
+    }
+  }
+
+  return processes;
+};
+
+/**
+ * Read the list of currently running processes.
+ * Returns empty array when unavailable.
+ */
+export const getProcessList = (): ProcessInfo[] => {
+  const platform = process.platform;
+
+  try {
+    if (platform === 'linux' || platform === 'darwin') {
+      const output = safeExecSyncString(
+        'ps -eo pid,comm,args --no-headers 2>/dev/null || echo ""',
+        2000,
+      );
+      return parsePsOutput(output);
+    }
+
+    if (platform === 'win32') {
+      const output = safeExecSyncString(
+        'wmic process get ProcessId,Name,CommandLine /format:csv 2>nul || echo ""',
+        2000,
+      );
+      return parseWmicProcessOutput(output);
+    }
+  } catch {
+    // Silently fall through
+  }
+
+  return [];
+};
+
+/**
  * Build a complete SystemMetrics snapshot.
  */
 export const getSystemMetricsSnapshot = (): SystemMetrics => ({
@@ -142,5 +233,6 @@ export const getSystemMetricsSnapshot = (): SystemMetrics => ({
   cpuLoad: getCpuLoad(),
   ramUsage: getRamUsage(),
   uptime: Math.floor(process.uptime()),
+  processes: getProcessList(),
 });
 

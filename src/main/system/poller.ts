@@ -7,7 +7,7 @@
  * - WeakMap-like per-instance isolation
  */
 
-import type { SystemMetrics } from '../../shared/types/index.js';
+import type { SystemMetrics, ProcessInfo } from '../../shared/types/index.js';
 import { SYSTEM_METRICS_POLL_INTERVAL_MS } from '../../shared/constants/index.js';
 import { translateCpuLoad, translateRamUsage, translateCpuTemp } from '../../shared/utils/sensory.js';
 
@@ -18,12 +18,31 @@ export type MetricsCallback = (
   sensation: string,
 ) => void;
 
+export type ProcessChangeCallback = (
+  changes: { started: ProcessInfo[]; terminated: ProcessInfo[] },
+) => void;
+
+const diffProcesses = (
+  previous: ProcessInfo[],
+  current: ProcessInfo[],
+): { started: ProcessInfo[]; terminated: ProcessInfo[] } => {
+  const prevPids = new Set(previous.map((p) => p.pid));
+  const currPids = new Set(current.map((p) => p.pid));
+
+  const started = current.filter((p) => !prevPids.has(p.pid));
+  const terminated = previous.filter((p) => !currPids.has(p.pid));
+
+  return { started, terminated };
+};
+
 export class SystemPoller {
   private intervalMs: number;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private latestMetrics: SystemMetrics | null = null;
+  private previousProcesses: ProcessInfo[] = [];
   private readonly callbacks = new Set<MetricsCallback>();
+  private readonly processCallbacks = new Set<ProcessChangeCallback>();
 
   constructor(intervalMs: number = SYSTEM_METRICS_POLL_INTERVAL_MS) {
     this.intervalMs = intervalMs;
@@ -34,6 +53,14 @@ export class SystemPoller {
     this.callbacks.add(callback);
     return () => {
       this.callbacks.delete(callback);
+    };
+  }
+
+  /** Register a callback to receive process change notifications. */
+  public onProcessChange(callback: ProcessChangeCallback): () => void {
+    this.processCallbacks.add(callback);
+    return () => {
+      this.processCallbacks.delete(callback);
     };
   }
 
@@ -73,11 +100,24 @@ export class SystemPoller {
     const metrics = getSystemMetricsSnapshot();
     this.latestMetrics = metrics;
 
+    // Diff processes and emit change events
+    const changes = diffProcesses(this.previousProcesses, metrics.processes);
+    this.previousProcesses = metrics.processes;
+
+    if (changes.started.length > 0 || changes.terminated.length > 0) {
+      for (const cb of this.processCallbacks) {
+        try {
+          cb(changes);
+        } catch (err) {
+          console.error('SystemPoller process callback error:', err);
+        }
+      }
+    }
+
     const cpuSensation = translateCpuLoad(metrics.cpuLoad);
     const ramSensation = translateRamUsage(metrics.ramUsage);
     const tempSensation = translateCpuTemp(metrics.cpuTemp);
     const sensation = `CPU: ${cpuSensation}; RAM: ${ramSensation}; Temp: ${tempSensation}`;
-
 
     for (const cb of this.callbacks) {
       try {
