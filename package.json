@@ -14,7 +14,7 @@
     "tsc:watch": "tsc --watch",
     "copy-assets": "mkdir -p dist/renderer/renderer/styles && cp src/renderer/index.html dist/renderer/renderer/ && cp src/renderer/styles/main.css dist/renderer/renderer/styles/",
     "start": "electron dist/main/main/index.js",
-    "dev": "npm-run-all --parallel build:watch start",
+    "dev": "npm-run-all clean tsc:main tsc:renderer copy-assets --parallel tsc:watch start",
     "test": "jest",
     "test:watch": "jest --watch"
   },
@@ -22,10 +22,11 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/three": "^0.184.1",
-    "electron": "^30.0.0",
     "jest": "^29.0.0",
+    "electron": "42.0.0-alpha.5",
     "npm-run-all": "^4.1.5",
     "ts-jest": "^29.0.0",
     "typescript": "^5.5.0"

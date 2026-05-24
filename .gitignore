@@ -32,6 +32,9 @@ coverage/
 out/
 build/
 
+# GitHub Actions (managed separately)
+.github/workflows/
+
 # Temporary
 tmp/
 temp/

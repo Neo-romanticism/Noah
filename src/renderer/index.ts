@@ -29,8 +29,39 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(5, 5, 5);
 scene.add(directionalLight);
 
+// Stage-01 IPC integration
+const noah = (window as any).noah as
+  | {
+      getState: () => Promise<unknown>;
+      onStateUpdate: (cb: (state: unknown) => void) => void;
+      onSystemMetrics: (cb: (metrics: unknown) => void) => void;
+      sendInteraction: (action: unknown) => void;
+    }
+  | undefined;
+
+if (!noah) throw new Error('Noah preload API not available');
+
+noah
+  .getState()
+  .then((state: unknown) => {
+    console.log('Initial NoahState:', state);
+  })
+  .catch((err: unknown) => console.error('Failed to getState:', err));
+
+noah.onStateUpdate((state: unknown) => {
+  console.log('NoahState update:', state);
+  // Later: update visuals/animation based on emotion/state.
+});
+
+noah.onSystemMetrics((metrics: unknown) => {
+  // Later: display metrics-driven behaviors.
+  console.log('SystemMetrics:', metrics);
+});
+
+
 // Placeholder — FBX avatar will be loaded here via FBXLoader
 console.log('Noah renderer initialized. Waiting for FBX avatar...');
+
 
 // Animation loop
 function animate() {

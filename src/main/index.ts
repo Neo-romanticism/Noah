@@ -1,31 +1,170 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 
-const createWindow = () => {
-  const mainWindow = new BrowserWindow({
-    width: 400,
-    height: 600,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    frame: false,
-    alwaysOnTop: true,
-    transparent: true,
-  });
+import { systemTicker } from './ipc/systemMetrics';
+import { registerIpc, trackWindowForIpc } from './ipc';
+import { StateManager } from './state';
+import { MemoryStore } from './memory';
+import { ensureDataDir, loadState, AutoSaveController } from './persistence';
+import { getDataPath } from './persistence/paths.js';
+import { SessionTracker } from './session';
 
-  mainWindow.loadFile(path.join(__dirname, '../../renderer/renderer/index.html'));
+
+const WINDOW_CONFIG = {
+  width: 400,
+  height: 600,
+  webPreferences: {
+    preload: path.join(__dirname, 'preload.js'),
+    contextIsolation: true,
+    nodeIntegration: false,
+  },
+  frame: false,
+  resizable: false,
+  alwaysOnTop: true,
+  transparent: true,
+} as const;
+
+const HTML_PATH = path.join(__dirname, '../../renderer/renderer/index.html');
+
+const getDefaultPosition = (): { x: number; y: number } => {
+  const display = require('electron').screen.getPrimaryDisplay();
+  const { width, height } = display.workAreaSize;
+
+  return {
+    x: Math.max(0, width - WINDOW_CONFIG.width - 20),
+    y: Math.max(0, height - WINDOW_CONFIG.height - 20),
+  };
 };
 
-app.whenReady().then(() => {
-  createWindow();
+const createWindow = (stateManager: StateManager): void => {
+  const position = getDefaultPosition();
+  const mainWindow = new BrowserWindow({ ...WINDOW_CONFIG, x: position.x, y: position.y });
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  trackWindowForIpc(mainWindow);
+
+  void mainWindow.loadFile(HTML_PATH);
+
+  // System metrics -> renderer
+  systemTicker(mainWindow.webContents);
+
+  // State change -> renderer
+  stateManager.onStateChange((state) => {
+    mainWindow.webContents.send('state:update', state);
   });
-});
+};
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+const handleActivate = (): void => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    const dataDir = ensureDataDir();
+    const persisted = loadState(dataDir);
+    const stateManager = new StateManager(persisted ?? undefined);
+    const memoryStore = new MemoryStore(dataDir);
+    memoryStore.load();
+    stateManager.setMemoryStore(memoryStore);
+
+    registerIpc({
+      getState: () => stateManager.getState(),
+      onAction: (event) => stateManager.applyInteraction(event),
+      sendSystemMetrics: (_wc) => {
+        // metrics pushed by systemTicker per window
+      },
+    });
+    createWindow(stateManager);
+  }
+};
+
+const handleWindowAllClosed = (): void => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+};
+
+const bootstrap = async (): Promise<void> => {
+  await app.whenReady();
+
+  // 1. Ensure data directory exists
+  const dataDir = ensureDataDir(getDataPath());
+
+  // 2. Load persisted state (with backup recovery)
+  const persisted = loadState(dataDir);
+
+  // 3. Create default state if no persisted state
+  const initialState = persisted ?? undefined;
+
+  // 4. Initialize StateManager
+  const stateManager = new StateManager(initialState);
+
+  // 5. Initialize MemoryStore
+  const memoryStore = new MemoryStore(dataDir);
+  memoryStore.load();
+  stateManager.setMemoryStore(memoryStore);
+
+  // 6. Reconcile absence if app was closed
+  if (persisted) {
+    const offlineSeconds = Math.floor((Date.now() - persisted.lastSeen) / 1000);
+    if (offlineSeconds > 0) {
+      stateManager.reconcileAbsence(offlineSeconds);
+
+      // Record 'woke' memory event
+      memoryStore.record({
+        type: 'woke',
+        severity: 1,
+        context: {
+          emotion: stateManager.getState().emotion,
+          affection: stateManager.getState().affection,
+          morality: stateManager.getState().morality,
+          hunger: stateManager.getState().hunger,
+          fatigue: stateManager.getState().fatigue,
+          trauma: stateManager.getState().trauma,
+        },
+        description: `App started after ${offlineSeconds >= 86400 ? `${Math.floor(offlineSeconds / 86400)}d` : `${Math.floor(offlineSeconds / 3600)}h`} offline`,
+      });
+    }
+  }
+
+  // 7. Initialize AutoSaveController
+  const autoSave = new AutoSaveController(stateManager, dataDir);
+  autoSave.start();
+
+  // 8. Initialize SessionTracker
+  const sessionTracker = new SessionTracker(
+    {
+      getState: () => stateManager.getState(),
+      reconcileAbsence: (seconds: number) => stateManager.reconcileAbsence(seconds),
+    },
+    memoryStore,
+  );
+  sessionTracker.start();
+
+  // 9. Register IPC channels
+  registerIpc({
+    getState: () => stateManager.getState(),
+    onAction: (event) => {
+      stateManager.applyInteraction(event);
+      sessionTracker.onUserActivity();
+    },
+    sendSystemMetrics: (_wc) => {
+      // metrics are pushed by systemTicker per window
+    },
+  });
+
+  // 10. Create window
+  createWindow(stateManager);
+
+  // 11. Graceful shutdown handlers
+  app.on('before-quit', () => {
+    autoSave.saveNow();
+    memoryStore.save();
+  });
+
+  app.on('will-quit', () => {
+    autoSave.stop();
+    sessionTracker.stop();
+  });
+
+  app.on('activate', handleActivate);
+};
+
+app.on('window-all-closed', handleWindowAllClosed);
+
+void bootstrap();

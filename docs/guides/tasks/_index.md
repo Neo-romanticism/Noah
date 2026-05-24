@@ -2,6 +2,7 @@
 
 - [STAGE-01_Foundation_and_Infrastructure](./STAGE-01_Foundation_and_Infrastructure.md)
 - [STAGE-02_State_Management_and_Persistence_Layer](./STAGE-02_State_Management_and_Persistence_Layer.md)
+- [STAGE-02_Detailed_Plan](./STAGE-02_Detailed_Plan.md)
 - [STAGE-03_System_Awareness_and_Sensory_Translation](./STAGE-03_System_Awareness_and_Sensory_Translation.md)
 - [STAGE-04_Threejs_Renderer_and_Scene_Setup](./STAGE-04_Threejs_Renderer_and_Scene_Setup.md)
 - [STAGE-05_Avatar_Loading_and_Animation_System](./STAGE-05_Avatar_Loading_and_Animation_System.md)
