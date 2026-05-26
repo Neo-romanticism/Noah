@@ -38,7 +38,7 @@ const WINDOW_CONFIG = {
   transparent: true,
 } as const;
 
-const HTML_PATH = path.join(__dirname, '../../renderer/renderer/index.html');
+const HTML_PATH = path.join(__dirname, '../../renderer/index.html');
 
 const getDefaultPosition = (): { x: number; y: number } => {
   const display = require('electron').screen.getPrimaryDisplay();
@@ -54,8 +54,14 @@ const createWindow = (stateManager: StateManager): BrowserWindow => {
   const position = getDefaultPosition();
   const mainWindow = new BrowserWindow({ ...WINDOW_CONFIG, x: position.x, y: position.y });
 
+  // Log window events
+  mainWindow.webContents.on('did-finish-load', () => console.log('[Main] Window finished loading'));
+  mainWindow.webContents.on('did-fail-load', (_e, errCode, errDesc) => console.log('[Main] Window failed to load:', errCode, errDesc));
+  mainWindow.webContents.on('render-process-gone', (_e, details) => console.log('[Main] Renderer process gone:', details.reason));
+
   trackWindowForIpc(mainWindow);
 
+  console.log('[Main] Loading HTML from:', HTML_PATH);
   void mainWindow.loadFile(HTML_PATH);
 
   // State change -> renderer

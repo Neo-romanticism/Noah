@@ -1,5 +1,7 @@
 import type { BrowserWindow, WebContents } from 'electron';
 import { ipcMain } from 'electron';
+import fs from 'fs';
+import path from 'path';
 
 import type { InteractionEvent, NoahState, SystemMetrics } from '../../shared/types';
 
@@ -24,6 +26,23 @@ export const registerIpc = (deps: IpcDeps): void => {
 
   ipcMain.on('action:interaction', (_event, payload: InteractionEvent) => {
     deps.onAction(payload);
+  });
+
+  ipcMain.on('debug:save-screenshot', (_event, dataUrl: string) => {
+    try {
+      const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+      const buffer = Buffer.from(base64Data, 'base64');
+      const filename = `screenshot_${new Date().getTime()}.png`;
+      const dir = path.join(process.cwd(), 'screenshots');
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const fullPath = path.join(dir, filename);
+      fs.writeFileSync(fullPath, buffer);
+      console.log(`[Main] Screenshot saved: ${fullPath}`);
+    } catch (err) {
+      console.error('[Main] Failed to save screenshot:', err);
+    }
   });
 
   // Main -> Renderer

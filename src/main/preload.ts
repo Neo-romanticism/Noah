@@ -7,6 +7,7 @@ export interface NoahPreloadAPI {
   onStateUpdate: (callback: (state: NoahState) => void) => void;
   sendInteraction: (action: InteractionEvent) => void;
   onSystemMetrics: (callback: (metrics: SystemMetrics) => void) => void;
+  saveScreenshot: (dataUrl: string) => void;
 }
 
 contextBridge.exposeInMainWorld('noah', {
@@ -24,6 +25,11 @@ contextBridge.exposeInMainWorld('noah', {
   // System metrics
   onSystemMetrics: (callback: (metrics: SystemMetrics) => void) => {
     ipcRenderer.on('system:metrics', (_event, metrics) => callback(metrics as SystemMetrics));
+  },
+
+  // Debug/Diagnostics
+  saveScreenshot: (dataUrl: string) => {
+    ipcRenderer.send('debug:save-screenshot', dataUrl);
   },
 });
 

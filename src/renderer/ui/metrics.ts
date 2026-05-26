@@ -13,11 +13,13 @@ export interface MetricsUI {
 export function createMetricsUI(): MetricsUI {
   const group = new THREE.Group();
 
-  // Background plane — reacts to system weather
-  const bgGeometry = new THREE.PlaneGeometry(20, 20);
+  // Background plane — reacts to system weather.
+  // Placed far behind everything so it acts as a true sky backdrop
+  // rather than bleeding through / tinting the room meshes.
+  const bgGeometry = new THREE.PlaneGeometry(200, 200);
   const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
   const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-  bgPlane.position.set(0, 0, -2); // behind room
+  bgPlane.position.set(0, 0, -20); // well behind the room (walls at z ≈ -1.5)
   group.add(bgPlane);
 
   // CPU load visualization bar

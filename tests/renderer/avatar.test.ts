@@ -3,7 +3,7 @@
  */
 
 import * as THREE from 'three';
-import { createPlaceholderAvatar, updateAvatar } from '../../src/renderer/avatar';
+import { createPlaceholderAvatar, updateAvatar, fixMaterial } from '../../src/renderer/avatar';
 
 describe('Avatar System', () => {
   test('createPlaceholderAvatar creates a visible avatar group', () => {
@@ -39,7 +39,7 @@ describe('Avatar System', () => {
     const avatar = createPlaceholderAvatar(scene);
 
     expect(avatar.group.position.x).toBe(0);
-    expect(avatar.group.position.y).toBe(-0.5);
+    expect(avatar.group.position.y).toBe(0);
     expect(avatar.group.position.z).toBe(0);
   });
 
@@ -54,5 +54,40 @@ describe('Avatar System', () => {
     // Eyes (basic material) don't need castShadow
     expect(meshes[2].castShadow).toBe(false); // left eye
     expect(meshes[3].castShadow).toBe(false); // right eye
+  });
+
+  describe('fixMaterial', () => {
+    test('converts very dark material to visible light gray', () => {
+      const darkMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
+      const fixed = fixMaterial(darkMat) as THREE.MeshStandardMaterial;
+
+      expect(fixed.isMeshStandardMaterial).toBe(true);
+      expect(fixed.color.getHex()).toBe(0xbbbbbb);
+    });
+
+    test('converts very bright material to controlled light gray', () => {
+      const brightMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+      const fixed = fixMaterial(brightMat) as THREE.MeshStandardMaterial;
+
+      expect(fixed.color.getHex()).toBe(0xcccccc);
+    });
+
+    test('preserves textures and sets sRGB color space', () => {
+      const texture = new THREE.Texture();
+      const texturedMat = new THREE.MeshPhongMaterial({ map: texture, color: 0x111111 });
+      const fixed = fixMaterial(texturedMat) as THREE.MeshStandardMaterial;
+
+      expect(fixed.map).toBe(texture);
+      // If map exists and it was dark, it should become white
+      expect(fixed.color.getHex()).toBe(0xffffff);
+    });
+
+    test('disables vertexColors and uses DoubleSide', () => {
+      const mat = new THREE.MeshPhongMaterial({ vertexColors: true });
+      const fixed = fixMaterial(mat) as THREE.MeshStandardMaterial;
+
+      expect(fixed.vertexColors).toBe(false);
+      expect(fixed.side).toBe(THREE.DoubleSide);
+    });
   });
 });

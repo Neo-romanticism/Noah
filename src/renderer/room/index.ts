@@ -17,7 +17,7 @@ export interface RoomObjects {
 
 export function buildRoom(ctx: SceneContext): RoomObjects {
   const floor = createFloor();
-  floor.position.set(0, -0.5, 0);
+  floor.position.set(0, 0, 0);
   ctx.scene.add(floor);
 
   const walls = createWalls();
@@ -25,11 +25,11 @@ export function buildRoom(ctx: SceneContext): RoomObjects {
   ctx.scene.add(walls);
 
   const bed = createBed();
-  bed.position.set(-1.2, -0.5, -0.5);
+  bed.position.set(-1.2, 0, -0.5);
   ctx.scene.add(bed);
 
   const desk = createDesk();
-  desk.position.set(1.0, -0.5, -0.3);
+  desk.position.set(1.0, 0, -0.3);
   ctx.scene.add(desk);
 
   const windowGroup = createWindow();
