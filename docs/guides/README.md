@@ -42,6 +42,14 @@ refactor: split emotion engine into modules
 test: add interaction handler tests
 ```
 
+### Cherry-Pick: master → main
+
+`master` 브랜치에서 안정적이고 완성된 커밋만 선별적으로 `main`으로 가져오는 전략과 절차를 정의합니다.
+
+- [Cherry-Pick 가이드](./CHERRY_PICK_FROM_MASTER.md) — 선정 기준, 실행 절차, 문서 템플릿
+- [Cherry-Pick 실행 로그](./CHERRY_PICK_LOG.md) — 실제 체리피킹 진행 상황 추적
+- [Cherry-Pick 갭 분석](./CHERRY_PICK_GAP.md) — 체리피킹 후 남은 차이 관리
+
 ## Operations
 
 ### Releasing

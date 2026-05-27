@@ -1,37 +1,16 @@
 import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
 import { ramUsageColor, cpuTempColor, deriveWeather, weatherColor } from '../shared/utils/sensory.js';
-
+import { scene, camera, renderer } from './scene.js';
+import { room } from './room.js';
 
 const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
 
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = null; // Transparent
+// Add the room to the scene
+scene.add(room);
 
-const camera = new THREE.PerspectiveCamera(
-  50,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(0, 1, 3);
-camera.lookAt(0, 0, 0);
-
-const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-container.appendChild(renderer.domElement);
-
-// Basic lighting
-// Background plane — reacts to system weather
-const bgGeometry = new THREE.PlaneGeometry(20, 20);
-const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
-const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
-bgPlane.position.set(0, 0, -1); // behind everything
-scene.add(bgPlane);
-
+// Add lighting for the 3D room
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
@@ -56,6 +35,9 @@ noah.onStateUpdate((state: NoahState) => {
   // Later: update visuals/animation based on emotion/state.
 });
 
+// Add the renderer to the DOM
+container.appendChild(renderer.domElement);
+
 // CPU load visualization bar
 const barGeometry = new THREE.PlaneGeometry(2, 0.1);
 const barMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
@@ -70,13 +52,20 @@ const ramBar = new THREE.Mesh(ramBarGeometry, ramBarMaterial);
 ramBar.position.set(0, 1.35, 0); // below CPU bar
 scene.add(ramBar);
 
+// Weather background plane — reacts to system weather
+// Positioned in front of the room but behind the metrics
+const weatherGeometry = new THREE.PlaneGeometry(20, 20);
+const weatherMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
+const weatherPlane = new THREE.Mesh(weatherGeometry, weatherMaterial);
+weatherPlane.position.set(0, 0, -2); // behind metrics but in front of room
+scene.add(weatherPlane);
+
 // CPU temperature indicator dot
 const tempDotGeometry = new THREE.CircleGeometry(0.08, 32);
 const tempDotMaterial = new THREE.MeshBasicMaterial({ color: 0x9ca3af });
 const tempDot = new THREE.Mesh(tempDotGeometry, tempDotMaterial);
 tempDot.position.set(1.2, 1.5, 0); // right of CPU bar
 scene.add(tempDot);
-
 
 noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
@@ -110,19 +99,15 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   const temp = metrics.cpuTemp;
   tempDotMaterial.color.set(cpuTempColor(temp));
 
-  // Update background weather tint
+  // Update weather background tint
   const weather = deriveWeather(metrics);
-  bgMaterial.color.set(weatherColor(weather));
+  weatherMaterial.color.set(weatherColor(weather));
 
   // Log process count
   console.log(`Running processes: ${metrics.processes.length}`);
 });
 
-
-
-// Placeholder — FBX avatar will be loaded here via FBXLoader
 console.log('Noah renderer initialized. Waiting for FBX avatar...');
-
 
 // Animation loop
 function animate() {
@@ -130,10 +115,3 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-// Resize handling
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});

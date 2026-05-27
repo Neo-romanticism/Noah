@@ -1,27 +1,36 @@
 /* Noah — Renderer Styles */
 
-* {
+/* CRITICAL: Both html and body must have transparent background
+   for Electron frameless transparent windows. Chromium composites
+   the html element's background, not just body's. */
+html, body {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
-  overflow: hidden;
-  background: transparent;
-  user-select: none;
   -webkit-app-region: drag;
 }
 
-#scene-container {
-  width: 100vw;
-  height: 100vh;
-  background: transparent;
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-/* Prevent text selection */
-body,
-canvas {
-  -webkit-user-select: none;
-  user-select: none;
+#scene-container {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  position: relative;
+}
+
+#scene-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }

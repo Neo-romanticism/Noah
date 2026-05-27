@@ -31,12 +31,22 @@ const WINDOW_CONFIG = {
     preload: path.join(__dirname, 'preload.js'),
     contextIsolation: true,
     nodeIntegration: false,
+    backgroundThrottling: false,
   },
   frame: false,
   resizable: false,
   alwaysOnTop: true,
   transparent: true,
-} as const;
+  // KDE Plasma KWin compositor ignores alpha compositing for frameless
+  // transparent windows unless the background color has a non-zero alpha
+  // component (even #00000001 is enough to trigger compositing).
+  // Using #01000000 — visually identical to #00000000 but forces KWin
+  // to actually blend the window with the desktop.
+  // NOTE: Do NOT set 'type' on Linux — all values (pop-up-menu, toolbar,
+  // splash, dock) either disable alpha or hide the window from the taskbar
+  // without fixing transparency on KDE.
+  backgroundColor: '#01000000',
+} satisfies Electron.BrowserWindowConstructorOptions;
 
 const HTML_PATH = path.join(__dirname, '../../renderer/renderer/index.html');
 
@@ -55,6 +65,14 @@ const createWindow = (stateManager: StateManager): BrowserWindow => {
   const mainWindow = new BrowserWindow({ ...WINDOW_CONFIG, x: position.x, y: position.y });
 
   trackWindowForIpc(mainWindow);
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Window] HTML load FAILED: ${errorDescription} (code: ${errorCode}) url: ${validatedURL}`);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error(`[Window] Render process gone! Reason: ${details.reason}, Exit code: ${details.exitCode}`);
+  });
 
   void mainWindow.loadFile(HTML_PATH);
 
@@ -90,6 +108,36 @@ const handleWindowAllClosed = (): void => {
     app.quit();
   }
 };
+
+// --- Transparency & GPU setup (MUST run before app.whenReady) ---
+
+// Enable transparent visuals (required by Linux X11 compositor for alpha blending)
+app.commandLine.appendSwitch('enable-transparent-visuals');
+
+// Disable GPU sandbox — avoids xdg-desktop-portal "Request ended (non-user cancelled)"
+// errors on KDE Plasma. Sandboxing is not needed since app is single-window.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+
+// Run GPU operations in the main process instead of a separate GPU process.
+// CRITICAL: On multi-GPU Linux systems (NVIDIA + AMD), the separate GPU process
+// crashes with exit_code=15 (SIGTERM) because the zygote cannot properly initialize
+// the GPU channel across different DRM devices (/dev/dri/renderD128 vs renderD129).
+// In-process GPU bypasses the zygote handshake entirely.
+app.commandLine.appendSwitch('in-process-gpu');
+
+// Ignore GPU denylist — allow WebGL even if the driver is on Chromium's denylist.
+// The system has an NVIDIA RTX 5080; we want hardware acceleration, not SwiftShader.
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+
+// Force X11 on Linux — Wayland + transparent windows have known Chromium bugs
+// (Electron 34 still uses Chromium <120, where Wayland transparency was broken)
+if (process.platform === 'linux') {
+  process.env['ELECTRON_OZONE_PLATFORM_HINT'] = 'x11';
+  // Force NVIDIA GPU on multi-GPU systems (NVIDIA Optimus / AMD PRIME).
+  // Without this, Electron may pick the AMD integrated GPU which lacks
+  // proper GLX support, causing the GPU process to crash.
+  process.env['__GLX_VENDOR_LIBRARY_NAME'] = 'nvidia';
+}
 
 const bootstrap = async (): Promise<void> => {
   await app.whenReady();
