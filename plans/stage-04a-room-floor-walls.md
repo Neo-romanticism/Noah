@@ -68,5 +68,47 @@ Changes needed:
 | Floor | warm gray | `#8B7D6B` |
 | Walls | light gray | `#C0C0C0` |
 
+## Extensibility Design (Added during review)
+
+### IRoom Interface
+
+The room module uses an [`IRoom`](../src/renderer/room.ts:42) interface so that the room source
+(procedural vs. file‑loaded FBX/GLTF) can be swapped without changing consumers.
+
+```typescript
+export interface IRoom {
+  readonly group: THREE.Group;   // ← all consumers use this
+  getFloor(): THREE.Mesh | null;
+  getWalls(): THREE.Mesh[];
+  dispose(): void;
+}
+```
+
+### Swap point
+
+Only the singleton export in [`room.ts`](../src/renderer/room.ts:150) needs to change:
+
+```
+// Current:
+export const room: IRoom = createProceduralRoom();
+
+// Future:
+// export const room: IRoom = await loadRoomFromFile('models/room.glb');
+```
+
+### Why not a class?
+
+A plain `interface` + factory function was chosen over a class because:
+- `IRoom` is a thin data contract, not a behavioural abstraction
+- A loaded FBX/GLTF model is naturally a `THREE.Group` + metadata — wrapping
+  it in a class adds no value
+- The factory (`createProceduralRoom`) can be easily replaced by an async
+  loader (`loadRoomFromFile`) that returns the same shape
+
+### Backward compatibility
+
+Named exports (`floor`, `backWall`, `leftWall`, `rightWall`) are preserved
+for existing tests. New code should prefer `room.group` / `room.getFloor()`.
+
 ## Next Steps
 After implementation, Stage 4b will focus on Window + Lighting.

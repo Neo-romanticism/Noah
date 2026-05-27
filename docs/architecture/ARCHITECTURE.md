@@ -20,7 +20,9 @@ src/
 │   └── ipc/               # IPC handlers
 ├── renderer/
 │   ├── index.ts           # Renderer entry
-│   ├── scene/             # Three.js scene setup
+│   ├── scene.ts           # Scene, camera, renderer setup
+│   ├── room.ts            # Room model (procedural via IRoom interface)
+│   ├── metrics.ts         # CPU/RAM/Temp/Weather visualisation
 │   ├── avatar/            # FBX avatar loading and control
 │   ├── ui/                # HTML/CSS UI overlays
 │   └── input/             # Mouse, keyboard event handling
@@ -76,6 +78,38 @@ webpack              → bundles renderer + Three.js
 Copy static assets   → dist/renderer/
 Electron             → loads dist/main/index.cjs
 ```
+
+## Room Module — Extensibility Design
+
+The [`room.ts`](src/renderer/room.ts) module is designed to support two modes:
+
+| Mode | Source | When |
+|------|--------|------|
+| **Procedural** | Three.js primitives (PlaneGeometry) | Now (Stage 4a) |
+| **File‑loaded** | FBX / GLTF model | Future (Stage 5a+) |
+
+This is achieved through the [`IRoom`](src/renderer/room.ts:42) interface:
+
+```typescript
+export interface IRoom {
+  readonly group: THREE.Group;
+  getFloor(): THREE.Mesh | null;   // null when FBX can't isolate floor
+  getWalls(): THREE.Mesh[];        // empty when FBX can't isolate walls
+  dispose(): void;                  // GPU resource cleanup
+}
+```
+
+**Swapping strategy** — only the singleton export line changes:
+```typescript
+// Current (procedural):
+export const room: IRoom = createProceduralRoom();
+
+// Future (file-loaded):
+// export const room: IRoom = await loadRoomFromFile('models/room.glb');
+```
+
+Consumers use `room.group` (not `room` directly), so the swap is transparent.
+See [`plans/stage-04a-room-floor-walls.md`](plans/stage-04a-room-floor-walls.md) for full rationale.
 
 ## Anti-Termination (Future)
 

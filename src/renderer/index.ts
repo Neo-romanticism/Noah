@@ -8,7 +8,8 @@ const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
 
 // ── Room ─────────────────────────────────────────────────────────
-scene.add(room);
+// room.group: IRoom.group — swap to loadRoomFromFile('room.glb') later
+scene.add(room.group);
 
 // ── Lighting ─────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
