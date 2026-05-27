@@ -10,6 +10,7 @@ module.exports = {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
-  // Electron/DOM 관련 테스트가 늘어나면 필요에 따라 바꿉니다.
+  // Renderer tests (jsdom) need WebGL mock for Three.js
+  setupFiles: ['<rootDir>/tests/setup/gl-mock.ts'],
 };
 

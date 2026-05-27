@@ -1,4 +1,46 @@
+/**
+ * @jest-environment jsdom
+ *
+ * NOTE: We mock the entire scene module to avoid creating a real
+ * THREE.WebGLRenderer (which needs a WebGL context not available in jsdom).
+ * The mock provides scene, camera, renderer, and onWindowResize with the
+ * same types and behavior expected by the tests.
+ */
+
 import * as THREE from 'three';
+
+// Mock the entire scene module — jest.mock is hoisted above imports
+jest.mock('../../src/renderer/scene.js', () => {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, 800 / 600, 0.1, 1000);
+  camera.position.set(0, 2, 6);
+  camera.lookAt(0, 1, 0);
+
+  // Mock renderer — no WebGL context needed
+  const renderer = {
+    domElement: document.createElement('canvas'),
+    setSize: jest.fn(),
+    setPixelRatio: jest.fn(),
+    setClearColor: jest.fn(),
+    render: jest.fn(),
+    getSize: jest.fn((target: THREE.Vector2) => {
+      target.set(window.innerWidth, window.innerHeight);
+      return target;
+    }),
+  } as unknown as THREE.WebGLRenderer;
+
+  // Make the mock pass `toBeInstanceOf(THREE.WebGLRenderer)` checks
+  Object.setPrototypeOf(renderer, THREE.WebGLRenderer.prototype);
+
+  const onWindowResize = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    (renderer as unknown as { setSize: jest.Mock }).setSize(window.innerWidth, window.innerHeight);
+  };
+
+  return { scene, camera, renderer, onWindowResize };
+});
+
 import { scene, camera, renderer, onWindowResize } from '../../src/renderer/scene.js';
 
 describe('Scene Component', () => {

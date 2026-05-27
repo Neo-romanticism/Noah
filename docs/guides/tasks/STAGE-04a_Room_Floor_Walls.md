@@ -14,13 +14,13 @@ floor + 3 walls (back, left, right). Front is open for camera view.
 
 ## Acceptance Criteria
 
-- [ ] Floor rendered (plane, colored, receives shadows)
-- [ ] 3 walls rendered (back, left, right)
-- [ ] Camera positioned to see room interior
-- [ ] Resize handling works
-- [ ] Stage 3 metrics (CPU/RAM/Temp bars + weather background) still visible
-- [ ] `npm test` ≥ 236 passed
-- [ ] `npm run build` clean
+- [x] Floor rendered (plane, colored, receives shadows)
+- [x] 3 walls rendered (back, left, right)
+- [x] Camera positioned to see room interior
+- [x] Resize handling works
+- [x] Stage 3 metrics (CPU/RAM/Temp bars + weather background) still visible
+- [x] `npm test` ≥ 236 passed
+- [x] `npm run build` clean
 
 ---
 
@@ -32,12 +32,16 @@ floor + 3 walls (back, left, right). Front is open for camera view.
 |------|---------|
 | `src/renderer/scene.ts` | Scene, camera, renderer, resize handler |
 | `src/renderer/room.ts` | Floor + walls geometry |
+| `src/renderer/metrics.ts` | CPU/RAM/Temp/Weather visualization (extracted from index.ts) |
+| `tests/setup/gl-mock.ts` | WebGL mock for Three.js in jsdom test environment |
+| `jest.config.js` | Jest configuration with setupFiles entry |
 
 ### Modify
 
 | File | Change |
 |------|--------|
-| `src/renderer/index.ts` | Integrate scene + room, keep metrics |
+| `src/renderer/index.ts` | Integrate scene + room, use metrics module |
+| `tests/renderer/scene.test.ts` | Use jest.mock to avoid WebGL context requirement |
 
 ---
 
