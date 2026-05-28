@@ -25,6 +25,7 @@ let services: AppServices | null = null;
 
 
 const WINDOW_CONFIG = {
+  show: true,
   width: 400,
   height: 600,
   webPreferences: {
@@ -32,6 +33,10 @@ const WINDOW_CONFIG = {
     contextIsolation: true,
     nodeIntegration: false,
     backgroundThrottling: false,
+    // CRITICAL: Allow ES module imports from file:// URLs.
+    // Without this, <script type="module">import "./index.js"</script> fails
+    // because Chromium blocks cross-origin module requests from file:// origins.
+    webSecurity: false,
   },
   frame: false,
   resizable: false,
@@ -63,8 +68,21 @@ const getDefaultPosition = (): { x: number; y: number } => {
 const createWindow = (stateManager: StateManager): BrowserWindow => {
   const position = getDefaultPosition();
   const mainWindow = new BrowserWindow({ ...WINDOW_CONFIG, x: position.x, y: position.y });
+  mainWindow.show();
 
   trackWindowForIpc(mainWindow);
+
+  console.log(`Window created at ${position.x}, ${position.y} with size ${WINDOW_CONFIG.width}x${WINDOW_CONFIG.height}`);
+
+  // Forward renderer console messages to main process stdout
+  mainWindow.webContents.on('console-message', (_event, level, message) => {
+    const prefix = level === 3 ? 'ERROR' : level === 2 ? 'WARN' : 'INFO';
+    console.log(`[Renderer ${prefix}] ${message}`);
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Window] HTML loaded successfully');
+  });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     console.error(`[Window] HTML load FAILED: ${errorDescription} (code: ${errorCode}) url: ${validatedURL}`);
@@ -114,20 +132,24 @@ const handleWindowAllClosed = (): void => {
 // Enable transparent visuals (required by Linux X11 compositor for alpha blending)
 app.commandLine.appendSwitch('enable-transparent-visuals');
 
-// Disable GPU sandbox — avoids xdg-desktop-portal "Request ended (non-user cancelled)"
-// errors on KDE Plasma. Sandboxing is not needed since app is single-window.
+// Disable GPU sandbox only (NOT the full --no-sandbox).
+// --no-sandbox breaks Chromium's shared memory setup on Linux,
+// causing "No such process (3)" errors when creating files in /dev/shm.
+// --disable-gpu-sandbox is sufficient to avoid xdg-desktop-portal errors
+// on KDE Plasma while keeping the renderer sandbox intact.
 app.commandLine.appendSwitch('disable-gpu-sandbox');
-
-// Run GPU operations in the main process instead of a separate GPU process.
-// CRITICAL: On multi-GPU Linux systems (NVIDIA + AMD), the separate GPU process
-// crashes with exit_code=15 (SIGTERM) because the zygote cannot properly initialize
-// the GPU channel across different DRM devices (/dev/dri/renderD128 vs renderD129).
-// In-process GPU bypasses the zygote handshake entirely.
-app.commandLine.appendSwitch('in-process-gpu');
 
 // Ignore GPU denylist — allow WebGL even if the driver is on Chromium's denylist.
 // The system has an NVIDIA RTX 5080; we want hardware acceleration, not SwiftShader.
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
+
+// Allow ES module imports from file:// URLs.
+// Chromium blocks cross-origin module requests from file:// origins by default.
+// Since Noah loads all renderer assets from local files, we need this to allow
+// <script type="module">import "./index.js"</script> to work.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('allow-file-access-from-files');
+}
 
 // Force X11 on Linux — Wayland + transparent windows have known Chromium bugs
 // (Electron 34 still uses Chromium <120, where Wayland transparency was broken)
