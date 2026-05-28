@@ -63,7 +63,7 @@ function updateTempDot(temp: number): void {
 
 const weatherMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
 const weatherPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), weatherMat);
-weatherPlane.position.set(0, 0, -2);
+weatherPlane.position.set(0, 0, -5.01); // 창문 뒤에서 하늘 역할
 
 function updateWeather(metrics: SystemMetrics): void {
   weatherMat.color.set(weatherColor(deriveWeather(metrics)));

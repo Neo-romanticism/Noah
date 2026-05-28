@@ -27,6 +27,10 @@ jest.mock('../../src/renderer/scene.js', () => {
       target.set(window.innerWidth, window.innerHeight);
       return target;
     }),
+    shadowMap: {
+      enabled: true,
+      type: 3, // THREE.PCFSoftShadowMap
+    },
   } as unknown as THREE.WebGLRenderer;
 
   // Make the mock pass `toBeInstanceOf(THREE.WebGLRenderer)` checks

@@ -30,6 +30,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0); // Fully transparent clear
 
+// Shadow map configuration
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
 // WebGL context loss handling
 renderer.domElement.addEventListener('webglcontextlost', (event) => {
   console.error('WebGL context lost!', event);
