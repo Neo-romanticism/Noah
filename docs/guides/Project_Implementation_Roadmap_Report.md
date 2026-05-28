@@ -226,7 +226,7 @@ The roadmap was constructed through the following analytical process:
 | Deliverable | Description |
 |-------------|-------------|
 | Three.js Scene | Complete default room environment |
-| Room Furnishings | Bed, desk, window, and floor geometry |
+| Room Furnishings | Bed, desk, window, and floor geometry — **모두 임시(placeholder) 메쉬** |
 | Dynamic Window | Time and system load visualization |
 | Camera and Lighting | Fixed-angle setup with proper illumination |
 | FBX Loading Infrastructure | Asset pipeline ready for avatar integration |
@@ -260,7 +260,7 @@ The roadmap was constructed through the following analytical process:
   - Dialog category selection
   - Text-to-speech parameter modulation
 - Implement animation transition interpolation and looping logic
-- Develop placeholder geometry for development phases pending final asset delivery
+- Develop **placeholder (임시) geometry** for development phases pending final asset delivery — 캡슐/박스 등 기본 지오메트리로 파이프라인 검증
 
 #### 4.5.2 Estimated Duration
 
@@ -275,7 +275,7 @@ The roadmap was constructed through the following analytical process:
 | Facial Expression Mapping | All sixteen emotions mapped to blend shapes |
 | Animation Catalog | Trigger definitions and transition rules |
 | Blend Shape Controller | Morph target manipulation system |
-| Development Placeholder | Fallback geometry for pre-asset phases |
+| Development Placeholder | **Fallback (임시) geometry** for pre-asset phases — 실제 FBX 도입 시 교체 |
 
 ---
 
@@ -780,7 +780,7 @@ Stage 11 (Progression) ←── Stage 12 (Economy) ←── Stage 13 (Lifecycl
 | Risk Factor | Probability | Impact | Mitigation Strategy |
 |-------------|-------------|--------|---------------------|
 | LLM latency exceeds real-time thought cycle requirements | Medium | High | Implement local LLM fallback; introduce rate limiting; develop asynchronous thought queue |
-| FBX avatar asset delivery delayed | Medium | Medium | Utilize placeholder geometry for early development; design asset swap system |
+| FBX avatar asset delivery delayed | Medium | Medium | Utilize **placeholder (임시) geometry** for early development; design asset swap system |
 | Cross-platform system metric inconsistency | Medium | Medium | Abstract OS bridge layer; implement per-platform adapter modules |
 | Memory accumulation from long sessions | Low | High | Implement memory summarization; enforce aggressive cleanup; set session bounds |
 | Emotional incoherence from LLM outputs | Medium | High | Strengthen reference program grounding; invest in prompt engineering; bind LLM to state parameters |

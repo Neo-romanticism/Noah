@@ -2,21 +2,21 @@ import * as THREE from 'three';
 import type { NoahState, SystemMetrics } from '../shared/types/index.js';
 import { scene, camera, renderer } from './scene.js';
 import { room } from './room.js';
-import { addMetricsToScene, updateAllMetrics } from './metrics.js';
+import { createMetricsDisplay } from './metrics.js';
 import { createLighting } from './lighting.js';
 import { createWindow } from './window.js';
 import { createWeatherEffects } from './weather.js';
 import { deriveWeather } from '../shared/utils/sensory.js';
+import { createInteractionManager } from './interaction/index.js';
 import type { SystemWeather } from '../shared/types/index.js';
 
 const container = document.getElementById('scene-container');
 if (!container) throw new Error('Scene container not found');
 
 // ── Room ─────────────────────────────────────────────────────────
-// room.group: IRoom.group — swap to loadRoomFromFile('room.glb') later
 scene.add(room.group);
 
-// ── Lighting (replaces hardcoded AmbientLight + DirectionalLight) ──
+// ── Lighting ─────────────────────────────────────────────────────
 const lighting = createLighting();
 scene.add(lighting.ambient);
 scene.add(lighting.sun);
@@ -31,7 +31,20 @@ scene.add(weatherFx.rain);
 scene.add(weatherFx.sunBeams);
 
 // ── Metrics overlay ──────────────────────────────────────────────
-addMetricsToScene(scene);
+const metricsDisplay = createMetricsDisplay();
+metricsDisplay.addToScene(scene);
+
+// ── Interaction system ──────────────────────────────────────────
+const interaction = createInteractionManager(camera, renderer.domElement);
+
+interaction.register(metricsDisplay.cpuMetric.bar, {
+  hoverenter() { metricsDisplay.cpuMetric.setHovered(true); },
+  hoverleave() { metricsDisplay.cpuMetric.setHovered(false); },
+});
+interaction.register(metricsDisplay.ramMetric.bar, {
+  hoverenter() { metricsDisplay.ramMetric.setHovered(true); },
+  hoverleave() { metricsDisplay.ramMetric.setHovered(false); },
+});
 
 // ── IPC ──────────────────────────────────────────────────────────
 const noah = window.noah;
@@ -50,7 +63,7 @@ let currentWeather: SystemWeather = 'sunny';
 
 noah.onSystemMetrics((metrics: SystemMetrics) => {
   console.log('SystemMetrics:', metrics);
-  updateAllMetrics(metrics);
+  metricsDisplay.update(metrics);
   currentWeather = deriveWeather(metrics);
 });
 
@@ -61,9 +74,13 @@ console.log('Noah renderer initialized. Waiting for FBX avatar...');
 
 const clock = new THREE.Clock();
 
+function update(_weather: SystemWeather, delta: number): void {
+  weatherFx.update(_weather, delta);
+}
+
 function animate(): void {
   requestAnimationFrame(animate);
-  weatherFx.update(currentWeather, clock.getDelta());
+  update(currentWeather, clock.getDelta());
   renderer.render(scene, camera);
 }
 animate();

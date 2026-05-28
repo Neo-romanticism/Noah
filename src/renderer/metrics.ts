@@ -2,82 +2,70 @@ import * as THREE from 'three';
 import type { SystemMetrics } from '../shared/types/index.js';
 import {
   ramUsageColor,
-  cpuTempColor,
   deriveWeather,
   weatherColor,
 } from '../shared/utils/sensory.js';
+import {
+  createMetricBar3D,
+  createTempDisplay3D,
+  createWeatherDisplay3D,
+  CPU_POS,
+  RAM_POS,
+  TEMP_POS,
+  WEATHER_POS,
+} from './metrics-3d.js';
 
-// ── Helpers ──────────────────────────────────────────────────────
+export interface MetricsDisplay {
+  cpuMetric: ReturnType<typeof createMetricBar3D>;
+  ramMetric: ReturnType<typeof createMetricBar3D>;
+  tempDisplay: ReturnType<typeof createTempDisplay3D>;
+  weatherDisplay: ReturnType<typeof createWeatherDisplay3D>;
+  weatherPlane: THREE.Mesh;
+  addToScene(scene: THREE.Scene): void;
+  update(metrics: SystemMetrics): void;
+}
 
-function createBar(width: number, height: number, color: number): THREE.Mesh {
-  return new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ color }),
+export function createMetricsDisplay(): MetricsDisplay {
+  const cpuMetric = createMetricBar3D('CPU', CPU_POS, 0x4ade80);
+  const ramMetric = createMetricBar3D('RAM', RAM_POS, 0x60a5fa);
+  const tempDisplay = createTempDisplay3D(TEMP_POS);
+  const weatherDisplay = createWeatherDisplay3D(WEATHER_POS);
+
+  const weatherMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
+  const weatherPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    weatherMat,
   );
-}
+  weatherPlane.position.set(0, 0, -5.01);
 
-function createTempDot(radius: number, color: number): THREE.Mesh {
-  return new THREE.Mesh(
-    new THREE.CircleGeometry(radius, 32),
-    new THREE.MeshBasicMaterial({ color }),
-  );
-}
+  return {
+    cpuMetric,
+    ramMetric,
+    tempDisplay,
+    weatherDisplay,
+    weatherPlane,
 
-// ── CPU load bar ─────────────────────────────────────────────────
+    addToScene(scene: THREE.Scene): void {
+      scene.add(cpuMetric.group);
+      scene.add(ramMetric.group);
+      scene.add(tempDisplay.group);
+      scene.add(weatherDisplay.group);
+      scene.add(weatherPlane);
+    },
 
-const cpuBar = createBar(2, 0.1, 0x4ade80);
-cpuBar.position.set(0, 1.5, 0);
+    update(metrics: SystemMetrics): void {
+      const cpuColor = metrics.cpuLoad <= 30 ? 0x4ade80
+        : metrics.cpuLoad <= 60 ? 0xfacc15
+        : metrics.cpuLoad <= 85 ? 0xfb923c
+        : 0xef4444;
+      cpuMetric.update(metrics.cpuLoad, new THREE.Color(cpuColor));
 
-function updateCpuBar(load: number): void {
-  const mat = cpuBar.material as THREE.MeshBasicMaterial;
-  if (load <= 30) mat.color.setHex(0x4ade80);
-  else if (load <= 60) mat.color.setHex(0xfacc15);
-  else if (load <= 85) mat.color.setHex(0xfb923c);
-  else mat.color.setHex(0xef4444);
+      ramMetric.update(metrics.ramUsage, ramUsageColor(metrics.ramUsage));
+      tempDisplay.update(metrics.cpuTemp);
 
-  cpuBar.scale.set(0.5 + (load / 100) * 1.5, 1, 1);
-}
-
-// ── RAM usage bar ────────────────────────────────────────────────
-
-const ramBar = createBar(2, 0.1, 0x60a5fa);
-ramBar.position.set(0, 1.35, 0);
-
-function updateRamBar(usage: number): void {
-  const mat = ramBar.material as THREE.MeshBasicMaterial;
-  mat.color.set(ramUsageColor(usage));
-  ramBar.scale.set(0.5 + (usage / 100) * 1.5, 1, 1);
-}
-
-// ── CPU temp indicator dot ───────────────────────────────────────
-
-const tempDot = createTempDot(0.08, 0x9ca3af);
-tempDot.position.set(1.2, 1.5, 0);
-
-function updateTempDot(temp: number): void {
-  const mat = tempDot.material as THREE.MeshBasicMaterial;
-  mat.color.set(cpuTempColor(temp));
-}
-
-// ── Weather background plane ─────────────────────────────────────
-
-const weatherMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb });
-const weatherPlane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), weatherMat);
-weatherPlane.position.set(0, 0, -5.01); // 창문 뒤에서 하늘 역할
-
-function updateWeather(metrics: SystemMetrics): void {
-  weatherMat.color.set(weatherColor(deriveWeather(metrics)));
-}
-
-// ── Public API ───────────────────────────────────────────────────
-
-export function addMetricsToScene(scene: THREE.Scene): void {
-  scene.add(cpuBar, ramBar, tempDot, weatherPlane);
-}
-
-export function updateAllMetrics(metrics: SystemMetrics): void {
-  updateCpuBar(metrics.cpuLoad);
-  updateRamBar(metrics.ramUsage);
-  updateTempDot(metrics.cpuTemp);
-  updateWeather(metrics);
+      const weather = deriveWeather(metrics);
+      weatherDisplay.update(weather);
+      weatherMat.color.set(weatherColor(weather));
+    },
+  };
 }

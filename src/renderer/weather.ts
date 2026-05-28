@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { SystemWeather } from '../shared/types/index.js';
 
 const RAIN_PARTICLE_COUNT = 500;
-const RAIN_FALL_SPEED = 3; // units per second
+const RAIN_FALL_SPEED = 3;
 const RAIN_AREA = {
   xMin: -4,
   xMax: 4,
@@ -15,7 +15,6 @@ const RAIN_AREA = {
 export interface WeatherEffects {
   rain: THREE.Points;
   sunBeams: THREE.Group;
-  /** 매 프레임 호출 — 파티클 위치 업데이트 + 가시성 전환 */
   update(weather: SystemWeather, delta: number): void;
   dispose(): void;
 }
@@ -34,7 +33,7 @@ export function createWeatherEffects(): WeatherEffects {
       RAIN_AREA.yMin + Math.random() * (RAIN_AREA.yMax - RAIN_AREA.yMin);
     positions[i3 + 2] =
       RAIN_AREA.zMin + Math.random() * (RAIN_AREA.zMax - RAIN_AREA.zMin);
-    velocities[i] = RAIN_FALL_SPEED + Math.random() * 2; // slight speed variation
+    velocities[i] = RAIN_FALL_SPEED + Math.random() * 2;
   }
 
   rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -49,55 +48,33 @@ export function createWeatherEffects(): WeatherEffects {
   const rain = new THREE.Points(rainGeometry, rainMaterial);
 
   // ── Sun beams ───────────────────────────────────────────────────
-  // Volumetric light approximation — cones pointing downward from window
+  // CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, heightSegments)
   const sunBeams = new THREE.Group();
   sunBeams.position.set(0, 2, -4.5);
 
-  const beamMat1 = new THREE.MeshBasicMaterial({
-    color: 0xfffde6,
-    transparent: true,
-    opacity: 0.04,
-    depthWrite: false,
-  });
-  const beamMat2 = new THREE.MeshBasicMaterial({
-    color: 0xfffde6,
-    transparent: true,
-    opacity: 0.06,
-    depthWrite: false,
-  });
-  const beamMat3 = new THREE.MeshBasicMaterial({
-    color: 0xfffde6,
-    transparent: true,
-    opacity: 0.08,
-    depthWrite: false,
-  });
+  const beamConfigs = [
+    { rTop: 0.02, rBot: 1.5, h: 4, opacity: 0.04 },
+    { rTop: 0.01, rBot: 1.0, h: 3.5, opacity: 0.06 },
+    { rTop: 0.0, rBot: 0.5, h: 3, opacity: 0.08 },
+  ] as const;
 
-  // ConeGeometry(radiusTop, radiusBottom, height, segments)
-  // Plan: Cone1 rTop=0.02 rBot=1.5 h=4, Cone2 rTop=0.01 rBot=1.0 h=3.5, Cone3 rTop=0 rBot=0.5 h=3
-  const cone1 = new THREE.Mesh(
-    new THREE.ConeGeometry(0.02, 1.5, 4, 1),
-    beamMat1,
-  );
-  cone1.rotation.x = -Math.PI / 2;
-  sunBeams.add(cone1);
-
-  const cone2 = new THREE.Mesh(
-    new THREE.ConeGeometry(0.01, 1.0, 4, 1),
-    beamMat2,
-  );
-  cone2.rotation.x = -Math.PI / 2;
-  sunBeams.add(cone2);
-
-  const cone3 = new THREE.Mesh(
-    new THREE.ConeGeometry(0.0, 0.5, 4, 1),
-    beamMat3,
-  );
-  cone3.rotation.x = -Math.PI / 2;
-  sunBeams.add(cone3);
+  for (const { rTop, rBot, h, opacity } of beamConfigs) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xfffde6,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+    });
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(rTop, rBot, h, 8, 1),
+      mat,
+    );
+    beam.rotation.x = -Math.PI / 2;
+    sunBeams.add(beam);
+  }
 
   // ── Update logic ────────────────────────────────────────────────
   function update(weather: SystemWeather, delta: number): void {
-    // Rain visibility
     const rainVisible = weather === 'rainy' || weather === 'stormy';
     rain.visible = rainVisible;
 
@@ -119,7 +96,6 @@ export function createWeatherEffects(): WeatherEffects {
       }
     }
 
-    // Sun beam visibility
     sunBeams.visible = weather === 'sunny';
   }
 

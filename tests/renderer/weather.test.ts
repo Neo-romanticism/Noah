@@ -83,14 +83,24 @@ describe('Weather Effects', () => {
       fx = createWeatherEffects();
     });
 
-    test('should modify particle positions (y decreases over time)', () => {
-      fx.update('rainy', 0.016);
+    test('should decrease particle y over time when rain is visible', () => {
       const positions = (fx.rain.geometry as THREE.BufferGeometry).attributes.position;
       const initialY = positions.getY(0);
 
-      // After one update frame, the first particle's y should have changed
-      // (since rain is visible, particles fall)
-      expect(initialY).toBeDefined();
+      fx.update('rainy', 0.1); // 100ms delta
+
+      const newY = positions.getY(0);
+      expect(newY).toBeLessThan(initialY!);
+    });
+
+    test('should not change particle y when rain is hidden', () => {
+      const positions = (fx.rain.geometry as THREE.BufferGeometry).attributes.position;
+      const initialY = positions.getY(0);
+
+      fx.update('sunny', 0.1); // rain hidden — no movement
+
+      const newY = positions.getY(0);
+      expect(newY).toBe(initialY);
     });
   });
 });

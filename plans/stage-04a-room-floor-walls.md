@@ -21,12 +21,14 @@ This file will contain:
 - Renderer with alpha and antialias
 - Resize handler for window resizing
 
+> ⚠️ **모든 방 메쉬는 임시(placeholder)입니다.** 실제 FBX/GLTF 룸 모델은 Stage 5+ 에서 외부 에셋으로 교체 예정입니다. 현재는 Three.js 기본 지오메트리(PlaneGeometry)로 공간 배치와 칼라/조명 파이프라인을 먼저 검증합니다.
+
 ### 2. Create src/renderer/room.ts
 This file will contain:
-- Floor geometry (10x10 plane at y=0 with warm gray color #8B7D6B)
-- Back wall geometry (10x4 plane at z=-5)
-- Left wall geometry (10x4 plane at x=-5, rotated Y +90°)
-- Right wall geometry (10x4 plane at x=+5, rotated Y -90°)
+- Floor geometry (10x10 plane at y=0 with warm gray color #8B7D6B) — **임시 PlaneGeometry**
+- Back wall geometry (10x4 plane at z=-5) — **임시 PlaneGeometry**
+- Left wall geometry (10x4 plane at x=-5, rotated Y +90°) — **임시 PlaneGeometry**
+- Right wall geometry (10x4 plane at x=+5, rotated Y -90°) — **임시 PlaneGeometry**
 - All walls will use light gray color (#C0C0C0)
 
 ### 3. Modify src/renderer/index.ts
@@ -52,10 +54,12 @@ Changes needed:
    (no front wall — camera looks in)
 ```
 
-- Floor: 10 × 10 plane, y = 0
-- Back wall: 10 × 4 plane, z = -5
-- Left wall: 10 × 4 plane, x = -5, rotated Y +90°
-- Right wall: 10 × 4 plane, x = +5, rotated Y -90°
+- Floor: 10 × 10 **임시 PlaneGeometry**, y = 0
+- Back wall: 10 × 4 **임시 PlaneGeometry**, z = -5
+- Left wall: 10 × 4 **임시 PlaneGeometry**, x = -5, rotated Y +90°
+- Right wall: 10 × 4 **임시 PlaneGeometry**, x = +5, rotated Y -90°
+
+> ⚠️ 위 모든 지오메트리는 **임시 메쉬**입니다. Stage 5+ 에서 FBX/GLTF 룸 모델로 교체 예정.
 
 ## Camera Configuration
 - Position: (0, 2, 6) — slightly elevated, looking in

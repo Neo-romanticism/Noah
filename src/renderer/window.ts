@@ -42,7 +42,7 @@ export function createWindow(
   // top bar
   const top = new THREE.Mesh(
     new THREE.BoxGeometry(width, frameThickness, frameThickness),
-    frameMat.clone(),
+    frameMat,
   );
   top.position.set(0, yOffset + halfH, 0);
   top.castShadow = true;
@@ -53,7 +53,7 @@ export function createWindow(
   // bottom bar
   const bottom = new THREE.Mesh(
     new THREE.BoxGeometry(width, frameThickness, frameThickness),
-    frameMat.clone(),
+    frameMat,
   );
   bottom.position.set(0, yOffset - halfH, 0);
   bottom.castShadow = true;
@@ -64,7 +64,7 @@ export function createWindow(
   // left bar
   const left = new THREE.Mesh(
     new THREE.BoxGeometry(frameThickness, height, frameThickness),
-    frameMat.clone(),
+    frameMat,
   );
   left.position.set(-halfW, yOffset, 0);
   left.castShadow = true;
@@ -75,7 +75,7 @@ export function createWindow(
   // right bar
   const right = new THREE.Mesh(
     new THREE.BoxGeometry(frameThickness, height, frameThickness),
-    frameMat.clone(),
+    frameMat,
   );
   right.position.set(halfW, yOffset, 0);
   right.castShadow = true;
@@ -86,7 +86,7 @@ export function createWindow(
   // Glass panel
   const glass = new THREE.Mesh(
     new THREE.PlaneGeometry(width, height),
-    glassMat.clone(),
+    glassMat,
   );
   glass.position.set(0, yOffset, 0);
   glass.castShadow = false;

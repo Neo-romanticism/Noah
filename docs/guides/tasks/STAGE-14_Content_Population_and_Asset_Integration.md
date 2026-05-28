@@ -5,10 +5,10 @@
 
 ## 상세 작업 체크리스트
 - [ ] Noah FBX 아바타 획득/생성
-  - [ ] early: placeholder 허용
+  - [ ] early: **placeholder (임시) 허용** — 캡슐/박스 등 기본 지오메트리로 파이프라인 검증
 - [ ] animations 소스/제작
   - [ ] Mixamo 사용 or custom sequences
-- [ ] 방(room) 모델 빌드
+- [ ] 방(room) 모델 빌드 (현재는 **임시 PlaneGeometry/BoxGeometry** 사용 중)
   - [ ] Default room(Level 0)
   - [ ] Garden(Level 20)
   - [ ] Gaming room(Level 35)

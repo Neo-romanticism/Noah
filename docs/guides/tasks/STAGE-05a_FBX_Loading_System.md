@@ -6,7 +6,7 @@
 ## Goal
 Load FBX avatar model with proper success/failure handling, ensuring:
 - Avatar is displayed correctly when loading succeeds
-- Placeholder is maintained with error visualization when loading fails
+- **Placeholder (임시 메쉬)** is maintained with error visualization when loading fails
 - Comprehensive error logging for debugging
 - Material enhancement for realistic rendering
 
@@ -61,7 +61,7 @@ Load FBX avatar model with proper success/failure handling, ensuring:
 
 ### 4. **Error Handling & Fallback** ✅
 - [x] Try/catch blocks around loading
-- [x] `createPlaceholderAvatar()` as fallback
+- [x] `createPlaceholderAvatar()` as fallback — **캡슐 지오메트리 임시 메쉬**
 - [x] Comprehensive error logging
 - [x] Debug scene graph analysis
 
@@ -113,7 +113,7 @@ function classifyMaterial(name: string, matName: string, hasTexture: boolean):
 | Type | Description | Status |
 |------|-------------|---------|
 | Sample FBX models | Various avatar models (static and animated) | ✅ noah.fbx available |
-| Error state textures | Placeholder textures for failed loading | ✅ Built-in capsule geometry |
+| Error state textures | Placeholder textures for failed loading | ✅ Built-in **임시** capsule geometry |
 | Loading indicators | Visual feedback elements | ❌ Not implemented |
 | Test scenes | Pre-configured test environments | ❌ Not implemented |
 
@@ -136,7 +136,7 @@ The FBX model uses cm units (UnitScaleFactor=100), but empirical testing shows:
 
 ### Key Functions:
 - `loadAvatar()`: Main loading function with error handling
-- `createPlaceholderAvatar()`: Fallback avatar using capsule geometry
+- `createPlaceholderAvatar()`: Fallback avatar using **임시** capsule geometry
 - `fixMaterial()`: Material property correction and enhancement
 - `updateAvatar()`: Animation update loop
 

@@ -145,7 +145,7 @@ A Three.js `PlaneGeometry` bar positioned at `(0, 1.5, 0)`:
 - **Color** changes based on `metrics.cpuLoad` (green → yellow → orange → red)
 - **Scale** varies from 0.5× to 2.0× width based on load intensity
 
-This is a minimal placeholder visualization. Stage 4+ will replace it with integrated room/environment effects.
+> ⚠️ **이 시각화는 임시(placeholder) 메쉬입니다.** `PlaneGeometry` 기반 단순 바로, Stage 4+ 에서 룸 환경에 통합된 3D 메트릭 UI(BoxGeometry/SphereGeometry + Sprite 레이블)로 교체 예정입니다. 현재는 메트릭-색상 매핑 파이프라인 검증용입니다.
 
 ---
 
@@ -236,7 +236,7 @@ See **Upcoming Slices: Component Mapping** above for per-metric checklists. The 
 | `ramUsage` is always `0` | Not yet implemented | Slice 2: `os.freemem()` / `os.totalmem()` (see Extension Guide) |
 | CPU load is approximate | `os.loadavg()` is 1-min average, not instantaneous | Acceptable for companion app granularity |
 | Windows fallback is one-shot | No sustained delta measurement | Acceptable; loadavg unavailable on Windows |
-| Visualization is a simple bar | Placeholder for Stage 4 room integration | Stage 4: integrated environment effects |
+| Visualization is a simple bar | **임시(placeholder)** PlaneGeometry 바. Stage 4+ 에서 3D 메트릭 UI로 교체 | Stage 4c: BoxGeometry/SphereGeometry + Sprite 레이블 |
 | Process list unavailable | No process enumeration yet | Slice 4: `ps-list` or `child_process.exec('ps')` |
 | Process termination not detected | No watch list or diff logic | Slice 5: process change detection + memory event |
 | Weather abstraction undefined | No `systemWeather` state field or translator | Slice 6: derive from `cpuLoad` + `ramUsage` + `cpuTemp` |

@@ -11,12 +11,12 @@ Implement window geometry and dynamic lighting system with weather integration t
 
 ## Acceptance Criteria
 
-- [ ] Window mesh added to back wall
-- [ ] Shadow-casting lights configured (directional + ambient)
-- [ ] Weather particle system visible (rain/sun)
-- [ ] Stage 3 metrics (CPU/RAM/Temp) remain visible
-- [ ] `npm test` ≥ 236 passed
-- [ ] `npm run build` clean
+- [x] Window mesh added to back wall
+- [x] Shadow-casting lights configured (directional + ambient)
+- [x] Weather particle system visible (rain/sun)
+- [x] Stage 3 metrics (CPU/RAM/Temp) remain visible
+- [x] `npm test` ≥ 236 passed
+- [x] `npm run build` clean
 
 ## Detailed Steps
 

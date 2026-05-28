@@ -2,6 +2,38 @@
 
 > All the ways the user can interact with Noah.
 
+## 📋 구현 가능성 재검토 결과 (2026-05-28)
+
+✅ **구현 가능성**: 완전히 구현 가능  
+**현재 상태**: 276개 테스트 통과, interaction 시스템 미구현  
+**예상 소요 시간**: 2-3시간
+
+---
+
+### 🔍 기술 검토 결과
+
+| 항목 | 확인 결과 | 수정 필요 여부 |
+|------|----------|----------------|
+| **interaction 시스템** | 전체 미구현 | 전체 구성 필요 |
+| **mouse 추적** | index.ts에 미구현 | 추가 필요 |
+| **z-겹침 문제** | 차이 0.51로 충분히 분리됨 | 수정 불필요 |
+| **타입 일치성** | 현재 구현에서는 문제 없음 | 수정 불필요 |
+| **성능 문제** | CanvasTexture 미사용 | 수정 불필요 |
+| **현재 테스트 수** | 276개 통과 | 기준 충족 |
+
+### 📝 주요 발견 사항
+
+1. **interaction.ts 시스템**: 현재 코드베이스에 존재하지 않음
+2. **mouse 추적**: index.ts에 pointermove 이벤트 리스너 없음
+3. **태양광 빔 위치**: `z=-4.5` (weather.ts:54)
+4. **메트릭 배경**: `z=-5.01` (metrics.ts:66)  
+5. **z-축 겹침**: 0.51 단위 차이로 충분히 분리됨
+6. **빔 투명도**: 0.04-0.08으로 매우 투명해 시각적 문제 없음
+
+---
+
+
+
 ## Basic Interactions
 
 ### Drag
@@ -157,3 +189,12 @@ Same interaction can have different effects based on:
 ---
 
 *Interactions should feel good. The user should want to interact, not feel obligated.*
+
+---
+
+### 📚 관련 기술 문서
+
+- **Metrics System**: `/gdd/systems/metrics.md`
+- **3D Rendering**: `/src/renderer/`
+- **Event Handling**: 아직 구현되지 않음 (`interaction.ts` 필요)
+- **Mouse/Pointer Tracking**: `/src/renderer/index.ts`에 추가 필요

@@ -31,8 +31,9 @@ export function createLighting(): LightingSetup {
     ambient,
     sun,
     dispose(): void {
-      ambient.dispose();
-      sun.dispose();
+      // Light objects (AmbientLight, DirectionalLight) don't have dispose().
+      // Only their shadow maps (LightShadow → RenderTarget) need cleanup.
+      sun.shadow.map?.dispose();
     },
   };
 }

@@ -12,7 +12,11 @@ if (typeof HTMLCanvasElement === 'undefined') {
   module.exports = {};
 } else {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-HTMLCanvasElement.prototype.getContext = function (): any {
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext = function (type: string): any {
+  if (type === '2d') {
+    return originalGetContext.call(this, type);
+  }
   return {
     getParameter: (p: number) => {
       const params: Record<number, unknown> = {

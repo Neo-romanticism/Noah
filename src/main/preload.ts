@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { NoahState, InteractionEvent, SystemMetrics } from '../shared/types';
 
 export interface NoahPreloadAPI {
+  /** `true` when the app was started via `npm start` (development mode). */
+  readonly isDev: boolean;
   getState: () => Promise<NoahState>;
   onStateUpdate: (callback: (state: NoahState) => void) => void;
   sendInteraction: (action: InteractionEvent) => void;
@@ -10,6 +12,8 @@ export interface NoahPreloadAPI {
 }
 
 contextBridge.exposeInMainWorld('noah', {
+  isDev: process.env.NODE_ENV !== 'production',
+
   // State
   getState: () => ipcRenderer.invoke('state:request'),
   onStateUpdate: (callback: (state: NoahState) => void) => {

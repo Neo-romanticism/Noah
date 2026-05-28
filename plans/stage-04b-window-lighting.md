@@ -57,7 +57,7 @@ weatherColor(weather): string
 
 | # | 파일 | 목적 |
 |---|------|------|
-| 1 | `src/renderer/window.ts` | 창문 프레임(BoxGeometry×4) + 투명 유리(PlaneGeometry + MeshPhysicalMaterial), castShadow 설정 |
+| 1 | `src/renderer/window.ts` | 창문 프레임(BoxGeometry×4) + 투명 유리(PlaneGeometry + MeshPhysicalMaterial), castShadow 설정 — **모두 임시 메쉬** |
 | 2 | `src/renderer/lighting.ts` | AmbientLight(0.3) + shadow-casting DirectionalLight(1.2), shadow map 설정 |
 | 3 | `src/renderer/weather.ts` | 비 파티클(THREE.Points, 500개) + 태양광 빔(ConeGeometry 3겹), animate 연동 |
 | 4 | `tests/renderer/window.test.ts` | 창문 구조, 위치, 재질, 그림자 속성 (~8개) |
@@ -87,7 +87,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 - `PCFSoftShadowMap`: Percentage-Closer Filtering — 부드러운 그림자
 - Electron `premultipliedAlpha: false`와 호환성 문제 없음
 
-### 3.2 `src/renderer/window.ts` — 창문 메시
+### 3.2 `src/renderer/window.ts` — 창문 메시 (임시)
+
+> ⚠️ **창문 메쉬는 임시(placeholder)입니다.** 실제 창문 프레임/유리 메쉬는 Stage 5+ 에서 FBX/GLTF 에셋으로 교체 예정입니다. 현재는 Three.js 기본 지오메트리(BoxGeometry/PlaneGeometry)로 위치와 투명도 파이프라인을 검증합니다.
 
 #### 창문 레이아웃
 
@@ -127,16 +129,18 @@ export function createWindow(
 
 #### 구현 상세
 
-- **프레임**: 4개의 `BoxGeometry` 바
+- **프레임**: 4개의 **임시** `BoxGeometry` 바
   - top: `BoxGeometry(3, 0.1, 0.1)` @ `(0, 3, -4.99)`
   - bottom: `BoxGeometry(3, 0.1, 0.1)` @ `(0, 1, -4.99)`
   - left: `BoxGeometry(0.1, 2, 0.1)` @ `(-1.5, 2, -4.99)`
   - right: `BoxGeometry(0.1, 2, 0.1)` @ `(1.5, 2, -4.99)`
   - 재질: `MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.5, metalness: 0.8 })`
   - 각 프레임 바: `castShadow = true`, `receiveShadow = false`
-- **유리**: `PlaneGeometry(3, 2)` @ `(0, 2, -4.99)`
+- **유리**: **임시** `PlaneGeometry(3, 2)` @ `(0, 2, -4.99)`
   - 재질: `MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, roughness: 0.1, metalness: 0.1 })`
   - `castShadow = false`, `receiveShadow = false`
+
+> ⚠️ 위 모든 지오메트리는 **임시 메쉬**입니다. 실제 창문 에셋은 Stage 5+ 에서 FBX/GLTF로 교체 예정.
 - **Group**: 모든 메시를 하나의 Group으로 묶어 export
 
 ### 3.3 `src/renderer/lighting.ts` — 그림자 조명 시스템
@@ -212,18 +216,20 @@ const RAIN_AREA = { xMin: -4, xMax: 4, yMin: 0, yMax: 4, zMin: -4, zMax: 4 };
 
 | 속성 | 값 |
 |------|-----|
-| 타입 | `THREE.Group` (3개의 ConeGeometry 겹침) |
+| 타입 | `THREE.Group` (3개의 **임시** ConeGeometry 겹침) |
 | 원점 | 창문 위치 `(0, 2, -4.5)` |
 | 방향 | 바닥을 향해 아래로, z축으로 약간 전진 |
-| Cone 1 | `radiusTop: 0.02, radiusBottom: 1.5, height: 4, opacity: 0.04` |
-| Cone 2 | `radiusTop: 0.01, radiusBottom: 1.0, height: 3.5, opacity: 0.06` |
-| Cone 3 | `radiusTop: 0.0, radiusBottom: 0.5, height: 3, opacity: 0.08` |
+| Cone 1 | `radiusTop: 0.02, radiusBottom: 1.5, height: 4, opacity: 0.04` — **임시** |
+| Cone 2 | `radiusTop: 0.01, radiusBottom: 1.0, height: 3.5, opacity: 0.06` — **임시** |
+| Cone 3 | `radiusTop: 0.0, radiusBottom: 0.5, height: 3, opacity: 0.08` — **임시** |
 | 재질 | `MeshBasicMaterial({ color: 0xfffde6, transparent: true, depthWrite: false })` |
 | 회전 | ConeGeometry 기본 축이 Y이므로 X축으로 회전하여 Z 방향 정렬 |
 | 가시성 | `weather === 'sunny'` |
 
-- **겹침 효과**: 서로 다른 반경/길이의 cone을 겹쳐 volumetric light 근사
+- **겹침 효과**: 서로 다른 반경/길이의 cone을 겹쳐 volumetric light 근사 (**임시 구현**)
 - **depthWrite: false**: 다른 오브젝트를 가리지 않도록
+
+> ⚠️ 비 파티클과 태양광 빔은 **임시 시각 효과**입니다. Stage 5+ 에서 실제 파티클 텍스처나 볼류메트릭 셰이더로 교체 가능.
 
 ### 3.5 `src/renderer/index.ts` — 통합
 
