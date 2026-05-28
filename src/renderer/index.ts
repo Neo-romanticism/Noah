@@ -8,6 +8,7 @@ import { createWindow } from './window.js';
 import { createWeatherEffects } from './weather.js';
 import { deriveWeather } from '../shared/utils/sensory.js';
 import { createInteractionManager } from './interaction/index.js';
+import { loadAvatar, createPlaceholderAvatar, type IAvatar } from './avatar.js';
 import type { SystemWeather } from '../shared/types/index.js';
 
 const container = document.getElementById('scene-container');
@@ -70,12 +71,32 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
 // ── Renderer ─────────────────────────────────────────────────────
 container.appendChild(renderer.domElement);
 
-console.log('Noah renderer initialized. Waiting for FBX avatar...');
+console.log('Noah renderer initialized. Loading FBX avatar...');
+
+// ── Avatar (async) ─────────────────────────────────────────────────
+let avatar: IAvatar;
+
+(async () => {
+  try {
+    const loaded = await loadAvatar({
+      modelPath: './models/noah.fbx',
+      scale: 1.0,
+      position: new THREE.Vector3(0, 0, 0.5),
+    });
+    avatar = loaded;
+    console.log('[Avatar] FBX loaded successfully');
+  } catch (err) {
+    console.error('[Avatar] Failed to load FBX, using placeholder:', err);
+    avatar = createPlaceholderAvatar();
+  }
+  scene.add(avatar.group);
+})();
 
 const clock = new THREE.Clock();
 
 function update(_weather: SystemWeather, delta: number): void {
   weatherFx.update(_weather, delta);
+  if (avatar) avatar.update(delta);
 }
 
 function animate(): void {

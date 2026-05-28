@@ -13,7 +13,7 @@
     "tsc:renderer": "tsc -p tsconfig.renderer.json",
     "tsc:watch": "tsc --watch",
     "bundle-renderer": "esbuild dist/renderer/renderer/index.js --bundle --format=iife --global-name=__noahBundle --platform=browser --outfile=dist/renderer/renderer/bundle.js",
-    "copy-assets": "mkdir -p dist/renderer/renderer/styles && cp src/renderer/index.html dist/renderer/renderer/ && cp src/renderer/styles/main.css dist/renderer/renderer/styles/",
+    "copy-assets": "mkdir -p dist/renderer/renderer/styles dist/renderer/renderer/models && cp src/renderer/index.html dist/renderer/renderer/ && cp src/renderer/styles/main.css dist/renderer/renderer/styles/ && cp assets/models/noah.fbx dist/renderer/renderer/models/",
     "start": "ELECTRON_RUN_AS_NODE= electron dist/main/main/index.js",
     "dev": "npm-run-all clean tsc:main tsc:renderer bundle-renderer copy-assets --parallel tsc:watch start",
     "test": "jest",
