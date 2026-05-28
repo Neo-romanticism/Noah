@@ -1,6 +1,12 @@
 # Stage 4d: Placeholder Avatar
 
-> **Scope**: Minimal avatar representation for testing scene interaction
+> **Status**: ⏭️ **SKIPPED** — 4d placeholder를 걸치지 않고 Stage 5a(FBX Loading System)에서 바로 실제 아바타로 구현하기로 결정. (2026-05-28)
+>
+> **Reason**: Placeholder(캡슐/구체)는 결국 폐기되는 코드. 5a에 이미 `createPlaceholderAvatar()` fallback이 포함되어 있어 별도 4d가 불필요.
+
+---
+
+> **Original Scope**: Minimal avatar representation for testing scene interaction
 
 ---
 
