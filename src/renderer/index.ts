@@ -71,7 +71,7 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
 // ── Renderer ─────────────────────────────────────────────────────
 container.appendChild(renderer.domElement);
 
-console.log('Noah renderer initialized. Loading FBX avatar...');
+console.log('Noah renderer initialized. Loading VRM avatar...');
 
 // ── Avatar (async) ─────────────────────────────────────────────────
 let avatar: IAvatar;
@@ -79,20 +79,21 @@ let avatar: IAvatar;
 (async () => {
   try {
     const loaded = await loadAvatar({
-      modelPath: './models/noah.fbx',
+      modelPath: './models/noah.glb',
       scale: 1.0,
       position: new THREE.Vector3(0, 0, 0.5),
     });
     avatar = loaded;
-    console.log('[Avatar] FBX loaded successfully');
+    console.log('[Avatar] VRM loaded successfully');
   } catch (err) {
-    console.error('[Avatar] Failed to load FBX, using placeholder:', err);
+    console.error('[Avatar] Failed to load VRM, using placeholder:', err);
     avatar = createPlaceholderAvatar();
   }
   scene.add(avatar.group);
 })();
 
 const clock = new THREE.Clock();
+let frameCount = 0;
 
 function update(_weather: SystemWeather, delta: number): void {
   weatherFx.update(_weather, delta);
@@ -103,5 +104,15 @@ function animate(): void {
   requestAnimationFrame(animate);
   update(currentWeather, clock.getDelta());
   renderer.render(scene, camera);
+  frameCount++;
+  if (frameCount === 60) {
+    console.log('[renderer] GPU info:', JSON.stringify({
+      textures: renderer.info.memory.textures,
+      geometries: renderer.info.memory.geometries,
+      programs: renderer.info.programs?.length ?? 0,
+      calls: renderer.info.render.calls,
+      triangles: renderer.info.render.triangles,
+    }));
+  }
 }
 animate();
