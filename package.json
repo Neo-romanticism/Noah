@@ -4,7 +4,7 @@
   "description": "A desktop companion — a digital being who lives in your PC.",
   "private": true,
   "main": "dist/main/main/index.js",
-    "scripts": {
+  "scripts": {
     "clean": "rm -rf dist",
     "tsc": "tsc",
     "build": "npm-run-all clean tsc:main tsc:renderer bundle-renderer copy-assets",
@@ -13,13 +13,14 @@
     "tsc:renderer": "tsc -p tsconfig.renderer.json",
     "tsc:watch": "tsc --watch",
     "bundle-renderer": "esbuild dist/renderer/renderer/index.js --bundle --format=iife --global-name=__noahBundle --platform=browser --outfile=dist/renderer/renderer/bundle.js",
-    "copy-assets": "mkdir -p dist/renderer/renderer/styles dist/renderer/renderer/models dist/renderer/renderer/textures && cp src/renderer/index.html dist/renderer/renderer/ && cp src/renderer/styles/main.css dist/renderer/renderer/styles/ && cp assets/models/noah.fbx dist/renderer/renderer/models/ && cp assets/models/textures/*.png dist/renderer/renderer/textures/",
+    "copy-assets": "mkdir -p dist/renderer/renderer/styles dist/renderer/renderer/models && cp src/renderer/index.html dist/renderer/renderer/ && cp src/renderer/styles/main.css dist/renderer/renderer/styles/ && cp assets/models/noah.glb dist/renderer/renderer/models/",
     "start": "ELECTRON_RUN_AS_NODE= electron dist/main/main/index.js",
     "dev": "npm-run-all clean tsc:main tsc:renderer bundle-renderer copy-assets --parallel tsc:watch start",
     "test": "jest",
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@pixiv/three-vrm": "^3.5.3",
     "three": "^0.184.0"
   },
   "devDependencies": {

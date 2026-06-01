@@ -9,6 +9,11 @@ module.exports = {
   // (프로젝트가 NodeNext moduleResolution을 사용하므로)
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    // Mock ES modules that Jest can't parse
+    '^three/examples/jsm/loaders/GLTFLoader\\.js$':
+      '<rootDir>/tests/__mocks__/GLTFLoaderMock.js',
+    '^@pixiv/three-vrm$':
+      '<rootDir>/tests/__mocks__/VRMMock.js',
   },
   // Renderer tests (jsdom) need WebGL mock for Three.js
   setupFiles: ['<rootDir>/tests/setup/gl-mock.ts'],
