@@ -3,14 +3,16 @@
  */
 
 import * as THREE from 'three';
+
 import {
   createPlaceholderAvatar,
   enhanceMaterial,
   fixMaterial,
-  isTextureValid,
   getFallbackColor,
   removeEmbeddedLights,
   removeGroundPlanes,
+  hideOutlineMeshes,
+  sortTransparentMeshes,
 } from '../../src/renderer/avatar.js';
 
 describe('Avatar System', () => {
@@ -46,65 +48,6 @@ describe('Avatar System', () => {
     test('dispose() cleans up geometries and materials', () => {
       const avatar = createPlaceholderAvatar();
       expect(() => avatar.dispose()).not.toThrow();
-    });
-  });
-
-  describe('isTextureValid', () => {
-    test('returns false for null/undefined', () => {
-      expect(isTextureValid(null)).toBe(false);
-      expect(isTextureValid(undefined)).toBe(false);
-    });
-
-    test('returns false when texture has no image', () => {
-      const tex = new THREE.Texture();
-      expect(isTextureValid(tex)).toBe(false);
-    });
-
-    test('returns true when HTMLImageElement is still loading (optimistic)', () => {
-      // FBXLoader creates textures from blob URLs for embedded images.
-      // The Image 'load' event fires asynchronously, so we optimistically
-      // consider still-loading textures as valid.
-      const tex = new THREE.Texture();
-      const img = { complete: false } as HTMLImageElement;
-      tex.image = img;
-      expect(isTextureValid(tex)).toBe(true);
-    });
-
-    test('returns false when HTMLImageElement has naturalWidth 0', () => {
-      const tex = new THREE.Texture();
-      const img = { complete: true, naturalWidth: 0, naturalHeight: 0 } as HTMLImageElement;
-      tex.image = img;
-      expect(isTextureValid(tex)).toBe(false);
-    });
-
-    test('returns true when HTMLImageElement is valid', () => {
-      const tex = new THREE.Texture();
-      const img = { complete: true, naturalWidth: 128, naturalHeight: 128 } as HTMLImageElement;
-      tex.image = img;
-      expect(isTextureValid(tex)).toBe(true);
-    });
-
-    test('returns true when ImageBitmap has dimensions', () => {
-      const tex = new THREE.Texture();
-      const bmp = { width: 64, height: 64 } as ImageBitmap;
-      tex.image = bmp;
-      expect(isTextureValid(tex)).toBe(true);
-    });
-
-    test('returns false when ImageBitmap has zero dimensions', () => {
-      const tex = new THREE.Texture();
-      const bmp = { width: 0, height: 0 } as ImageBitmap;
-      tex.image = bmp;
-      expect(isTextureValid(tex)).toBe(false);
-    });
-
-    test('returns true for canvas elements', () => {
-      const tex = new THREE.Texture();
-      const canvas = document.createElement('canvas');
-      canvas.width = 100;
-      canvas.height = 100;
-      tex.image = canvas;
-      expect(isTextureValid(tex)).toBe(true);
     });
   });
 
@@ -170,15 +113,6 @@ describe('Avatar System', () => {
       expect(enhanced.color.getHex()).toBe(0x123456);
     });
 
-    test('fallbacks from white to category color when texture is invalid', () => {
-      // FBX material with white color (texture-only) and invalid texture
-      const tex = new THREE.Texture(); // no image → invalid
-      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex });
-      const enhanced = enhanceMaterial(mat, 'skin');
-      // Should fallback to skin color, not remain white
-      expect(enhanced.color.getHex()).not.toBe(0xffffff);
-      expect(enhanced.color.getHex()).toBe(0xffe4c4);
-    });
   });
 
   describe('fixMaterial', () => {
@@ -212,30 +146,6 @@ describe('Avatar System', () => {
       expect(fixed.sheen).toBe(0.25);
     });
 
-    test('fallbacks white color to skin color for Face mesh with invalid texture', () => {
-      // Simulate FBXLoader: white color (texture-only) + invalid texture
-      const tex = new THREE.Texture(); // no image → isTextureValid returns false
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        map: tex,
-        name: 'Face_Mat',
-      });
-      const fixed = fixMaterial(mat, 'Face') as THREE.MeshPhysicalMaterial;
-      // Should fallback to skin color
-      expect(fixed.color.getHex()).toBe(0xffe4c4);
-    });
-
-    test('fallbacks white color to hair color for Hair mesh with invalid texture', () => {
-      const tex = new THREE.Texture(); // no image → invalid
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        map: tex,
-        name: 'Hair_Mat',
-      });
-      const fixed = fixMaterial(mat, 'Hair') as THREE.MeshPhysicalMaterial;
-      // Should fallback to hair color
-      expect(fixed.color.getHex()).toBe(0x4a3728);
-    });
   });
 
   describe('removeEmbeddedLights', () => {
@@ -278,6 +188,138 @@ describe('Avatar System', () => {
 
       removeGroundPlanes(group);
       expect(group.children).toContain(mesh);
+    });
+  });
+
+  describe('hideOutlineMeshes', () => {
+    test('hides meshes with "outline" in name', () => {
+      const group = new THREE.Group();
+      const normal = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      normal.name = 'Hair';
+      group.add(normal);
+
+      const outline = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      outline.name = 'Hair_outline';
+      group.add(outline);
+
+      hideOutlineMeshes(group);
+
+      expect(normal.visible).toBe(true);
+      expect(outline.visible).toBe(false);
+    });
+
+    test('hides meshes with outline material', () => {
+      const group = new THREE.Group();
+      const outlineMat = new THREE.MeshStandardMaterial();
+      outlineMat.name = 'Outline_Mat';
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        outlineMat,
+      );
+      mesh.name = 'Hair001';
+      group.add(mesh);
+
+      hideOutlineMeshes(group);
+
+      expect(mesh.visible).toBe(false);
+    });
+
+    test('hides single-material mesh with outline-named material', () => {
+      const group = new THREE.Group();
+      const outlineMat = new THREE.MeshStandardMaterial();
+      outlineMat.name = 'Hair_Outline';
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        outlineMat,
+      );
+      mesh.name = 'Hair';
+      group.add(mesh);
+
+      hideOutlineMeshes(group);
+
+      expect(mesh.visible).toBe(false);
+    });
+
+    test('keeps normal meshes visible', () => {
+      const group = new THREE.Group();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      mesh.name = 'Face';
+      group.add(mesh);
+
+      hideOutlineMeshes(group);
+
+      expect(mesh.visible).toBe(true);
+    });
+
+    test('handles multi-material meshes with outline material', () => {
+      const group = new THREE.Group();
+      const normalMat = new THREE.MeshStandardMaterial();
+      normalMat.name = 'Skin';
+      const outlineMat = new THREE.MeshStandardMaterial();
+      outlineMat.name = 'Outline';
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        [normalMat, outlineMat],
+      );
+      mesh.name = 'Body';
+      group.add(mesh);
+
+      hideOutlineMeshes(group);
+
+      // Mesh stays visible; outline material becomes transparent
+      expect(mesh.visible).toBe(true);
+      expect(outlineMat.opacity).toBe(0);
+      expect(outlineMat.transparent).toBe(true);
+      // Base material untouched
+      expect(normalMat.opacity).toBe(1);
+      expect(normalMat.transparent).toBe(false);
+    });
+  });
+
+  describe('sortTransparentMeshes', () => {
+    test('sets renderOrder on transparent meshes', () => {
+      const group = new THREE.Group();
+      const opaque = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      opaque.name = 'Body';
+      group.add(opaque);
+
+      const transparent = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.5 }),
+      );
+      transparent.name = 'Hair';
+      group.add(transparent);
+
+      sortTransparentMeshes(group);
+
+      expect(opaque.renderOrder).toBe(0);
+      expect(transparent.renderOrder).toBeGreaterThan(0);
+    });
+
+    test('does not modify non-transparent meshes renderOrder', () => {
+      const group = new THREE.Group();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      mesh.name = 'Face';
+      group.add(mesh);
+
+      sortTransparentMeshes(group);
+
+      expect(mesh.renderOrder).toBe(0);
     });
   });
 });

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED — replaced by export_vrm_to_glb.py
+
 Noah Pipeline — VRM Import & Clean
 ====================================
 1. Import VRM file
@@ -7,10 +9,8 @@ Noah Pipeline — VRM Import & Clean
 3. Verify materials are not black
 4. Export clean FBX
 
-Usage:
-    blender --background --python scripts/blender/import_vrm_clean.py
-
-Requires: Blender 3.0+ with VRM Addon installed
+This file is kept for git history reference only.
+Use scripts/blender/export_vrm_to_glb.py instead (GLB export with embedded textures).
 """
 
 import bpy

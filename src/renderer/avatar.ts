@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -6,6 +8,7 @@ export interface IAvatar {
   group: THREE.Group;
   mixer: THREE.AnimationMixer | null;
   animations: THREE.AnimationClip[];
+  vrm?: any;
   update(delta: number): void;
   dispose(): void;
 }
@@ -17,14 +20,16 @@ export interface AvatarConfig {
   skipMaterialFix?: boolean;
 }
 
-// ── FBX Loader (lazy) ──────────────────────────────────────────────
+// ── GLTF/VRM Loader (singleton) ────────────────────────────────────
 
-let FBXLoaderModule: typeof import('three/examples/jsm/loaders/FBXLoader.js') | null = null;
+let gltfLoader: GLTFLoader | null = null;
 
-async function getFBXLoader(): Promise<typeof import('three/examples/jsm/loaders/FBXLoader.js')> {
-  if (FBXLoaderModule) return FBXLoaderModule;
-  FBXLoaderModule = await import('three/examples/jsm/loaders/FBXLoader.js');
-  return FBXLoaderModule;
+function getGLTFLoader(): GLTFLoader {
+  if (!gltfLoader) {
+    gltfLoader = new GLTFLoader();
+    gltfLoader.register(parser => new VRMLoaderPlugin(parser));
+  }
+  return gltfLoader;
 }
 
 // ── Material Classification ────────────────────────────────────────
@@ -68,39 +73,134 @@ export function getFallbackColor(category: string): THREE.Color {
   return new THREE.Color(hex);
 }
 
-// ── Texture Validation ─────────────────────────────────────────────
+// ── ImageBitmap → DataTexture Conversion ─────────────────────────
 
 /**
- * Check whether a Three.js `Texture` actually has usable image data.
- *
- * FBXLoader may create a placeholder `Texture` when the embedded image
- * reference is missing or invalid. Such a texture has no underlying image
- * (or an incomplete one), causing the GPU to sample black → avatar appears
- * black even though the material color is white.
+ * ImageBitmap 기반 Texture를 DataTexture로 변환합니다.
+ * Three.js r184에서 ImageBitmap을 WebGL에 업로드할 때 호환성 문제가 발생할 수 있어
+ * Uint8Array 기반 DataTexture로 우회합니다.
  */
-export function isTextureValid(texture: THREE.Texture | null | undefined): boolean {
-  if (!texture) return false;
-  const img = texture.image as any;
-  if (!img) return false;
-
-  // HTMLImageElement
-  if (typeof img.complete === 'boolean') {
-    // Still loading (complete === false) → optimistically treat as valid.
-    // FBXLoader creates textures from blob URLs for embedded images, and
-    // the Image `load` event fires asynchronously. By the time fixMaterial
-    // runs, the image may not have finished loading yet.
-    if (!img.complete) return true;
-    // Loaded but no dimensions → failed to decode
-    if (typeof img.naturalWidth === 'number' && img.naturalWidth === 0) return false;
+function convertImageBitmapToDataTexture(tex: THREE.Texture): THREE.Texture {
+  const img = tex.image as ImageBitmap | undefined;
+  if (!img || img.constructor.name !== 'ImageBitmap') {
+    tex.needsUpdate = true;
+    return tex;
   }
 
-  // ImageBitmap / HTMLCanvasElement / OffscreenCanvas
-  if (typeof img.width === 'number' && typeof img.height === 'number') {
-    return img.width > 0 && img.height > 0;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    tex.needsUpdate = true;
+    return tex;
   }
 
-  // Has some form of image-like object we can't inspect → assume valid
-  return true;
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const dataTex = new THREE.DataTexture(imageData.data, canvas.width, canvas.height);
+  dataTex.format = THREE.RGBAFormat;
+  dataTex.colorSpace = tex.colorSpace || THREE.SRGBColorSpace;
+  dataTex.flipY = false;
+  dataTex.needsUpdate = true;
+  return dataTex;
+}
+
+// ── MToon → Standard Material Conversion ───────────────────────────
+
+/**
+ * MToonMaterial을 MeshStandardMaterial로 변환합니다.
+ * MToon은 VRM 전용 shader로, Three.js r184 등 최신 버전에서 호환성 문제가 발생할 수 있습니다.
+ */
+export function convertMToonToStandard(mtoon: any): THREE.MeshStandardMaterial {
+  const std = new THREE.MeshStandardMaterial();
+
+  // ── 색상 (MToon의 litFactor uniform이 실제 색상) ──────────────────
+  const litFactor = mtoon.uniforms?.litFactor?.value;
+  if (litFactor) {
+    std.color.copy(litFactor);
+  } else if (mtoon.color) {
+    std.color.copy(mtoon.color);
+  } else {
+    std.color.setHex(0xffffff);
+  }
+
+  // ── 메인 텍스처 (ImageBitmap → DataTexture 변환) ─────────────────
+  if (mtoon.map) {
+    std.map = convertImageBitmapToDataTexture(mtoon.map);
+  } else if (mtoon.shadeMultiplyTexture) {
+    std.map = convertImageBitmapToDataTexture(mtoon.shadeMultiplyTexture);
+  }
+
+  // ── 노멀 맵 ──────────────────────────────────────────────────────
+  if (mtoon.normalMap) {
+    std.normalMap = convertImageBitmapToDataTexture(mtoon.normalMap);
+    if (mtoon.normalScale) std.normalScale.copy(mtoon.normalScale);
+  }
+
+  // ── Emissive ─────────────────────────────────────────────────────
+  if (mtoon.emissive) std.emissive.copy(mtoon.emissive);
+  if (mtoon.emissiveMap) std.emissiveMap = convertImageBitmapToDataTexture(mtoon.emissiveMap);
+  std.emissiveIntensity = mtoon.emissiveIntensity ?? 0;
+
+  // ── Shade (MToon 특화) ───────────────────────────────────────────
+  if (mtoon.shadeColor) {
+    std.emissive.copy(mtoon.shadeColor).multiplyScalar(0.1);
+  }
+  if (mtoon.shadeMultiplyTexture && std.map?.image !== mtoon.shadeMultiplyTexture?.image) {
+    std.aoMap = convertImageBitmapToDataTexture(mtoon.shadeMultiplyTexture);
+    std.aoMapIntensity = 0.5;
+  }
+
+  // ── 투명도 (MToon의 alpha 설정 유지) ──────────────────────────────
+  // MToon의 blendMode: OPAQUE(0), MASK(1), BLEND(2)
+  // transparentWithZWrite: MToon 확장 — 투명 + Z-Write 동시 활성화
+  const blendMode = mtoon.blendMode ?? 0;
+  const tzw = !!(mtoon.transparentWithZWrite ?? (mtoon.uniforms?.transparentWithZWrite?.value));
+
+  std.transparent = blendMode === 2;
+  std.alphaTest = blendMode === 1 ? 0.5 : 0;
+  std.depthWrite = std.transparent ? tzw : true;
+  std.opacity = mtoon.opacity ?? 1.0;
+
+  if (mtoon.alphaMap) {
+    std.alphaMap = convertImageBitmapToDataTexture(mtoon.alphaMap);
+  }
+
+  // MASK mode: alphaTest 0.5로 클리핑, transparent는 false 유지
+  if (blendMode === 1) {
+    std.transparent = false;
+    std.alphaTest = 0.5;
+    std.depthWrite = true;
+  }
+
+  // ── PBR 파라미터 (MToon → Standard 매핑) ────────────────────────
+  std.roughness = mtoon.shadingShiftTexture ? 0.6 : 0.8;
+  std.metalness = 0.0;
+
+  // ── Rim light (MToon 특화) → envMapIntensity로 근사 ─────────────
+  if (mtoon.rimColor) {
+    std.envMapIntensity = Math.max(std.envMapIntensity, 0.3);
+  }
+
+  // ── 기타 ─────────────────────────────────────────────────────────
+  std.side = mtoon.side ?? THREE.FrontSide;
+  std.vertexColors = mtoon.vertexColors ?? false;
+
+  if (mtoon.name) std.name = mtoon.name.replace('_MToon', '_Standard');
+  if (mtoon.userData) std.userData = { ...mtoon.userData, convertedFromMToon: true };
+
+  // ── Color space 보정 ─────────────────────────────────────────────
+  if (std.map) std.map.colorSpace = THREE.SRGBColorSpace;
+  if (std.emissiveMap) std.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  if (std.normalMap) std.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
+  if (std.aoMap) std.aoMap.colorSpace = THREE.LinearSRGBColorSpace;
+  if (std.alphaMap) std.alphaMap.colorSpace = THREE.LinearSRGBColorSpace;
+
+  // ── 셰이더 재컴파일 트리거 ──────────────────────────────────────
+  std.needsUpdate = true;
+
+  return std;
 }
 
 // ── Material Enhancement ───────────────────────────────────────────
@@ -108,104 +208,140 @@ export function isTextureValid(texture: THREE.Texture | null | undefined): boole
 export function enhanceMaterial(
   mat: THREE.MeshStandardMaterial,
   category: 'skin' | 'hair' | 'eye' | 'mouth' | 'clothing' | 'default'
-): THREE.MeshPhysicalMaterial {
-  const p: THREE.MeshPhysicalMaterialParameters = {
-    color: mat.color.clone(),
-    map: mat.map,
-    normalMap: mat.normalMap,
-    normalScale: mat.normalScale,
-    emissive: mat.emissive.clone(),
-    emissiveMap: mat.emissiveMap,
-    emissiveIntensity: mat.emissiveIntensity,
-    alphaMap: mat.alphaMap,
-    alphaTest: mat.alphaTest,
-    transparent: mat.transparent,
-    opacity: mat.opacity,
-    side: mat.side,
-    forceSinglePass: mat.forceSinglePass,
-    vertexColors: mat.vertexColors,
-    envMap: mat.envMap,
-    envMapIntensity: mat.envMapIntensity,
-  };
+): THREE.MeshStandardMaterial {
+  // MeshPhysicalMaterial로 업그레이드 (sheen/clearcoat 지원 필요)
+  let phys: THREE.MeshPhysicalMaterial;
+  if (mat instanceof THREE.MeshPhysicalMaterial) {
+    phys = mat;
+  } else {
+    // 수동으로 속성 복사하여 MeshPhysicalMaterial 생성
+    // (MeshPhysicalMaterial.copy()는 jsdom/테스트 환경에서 Vector2 속성 오류 발생)
+    phys = new THREE.MeshPhysicalMaterial();
+    phys.color.copy(mat.color);
+    if (mat.map) {
+      phys.map = mat.map
+      phys.map.needsUpdate = true
+    }
+    if (mat.normalMap) {
+      phys.normalMap = mat.normalMap;
+      phys.normalMap.needsUpdate = true
+      if (mat.normalScale) phys.normalScale.copy(mat.normalScale);
+    }
+    phys.emissive.copy(mat.emissive);
+    if (mat.emissiveMap) {
+      phys.emissiveMap = mat.emissiveMap;
+      phys.emissiveMap.needsUpdate = true
+    }
+    phys.emissiveIntensity = mat.emissiveIntensity;
+    if (mat.alphaMap) {
+      phys.alphaMap = mat.alphaMap;
+      phys.alphaMap.needsUpdate = true
+    }
+    phys.alphaTest = mat.alphaTest;
+    phys.transparent = mat.transparent;
+    phys.opacity = mat.opacity;
+    phys.depthWrite = mat.depthWrite;
+    phys.depthTest = mat.depthTest;
+    phys.roughness = mat.roughness;
+    phys.metalness = mat.metalness;
+    phys.side = mat.side;
+    phys.vertexColors = mat.vertexColors;
+    if (mat.envMap) {
+      phys.envMap = mat.envMap;
+      phys.envMapIntensity = mat.envMapIntensity;
+    }
+    // 누락되었던 추가 속성들
+    if (mat.lightMap) {
+      phys.lightMap = mat.lightMap;
+      phys.lightMapIntensity = mat.lightMapIntensity;
+    }
+    if (mat.aoMap) {
+      phys.aoMap = mat.aoMap;
+      phys.aoMapIntensity = mat.aoMapIntensity;
+    }
+    if (mat.roughnessMap) {
+      phys.roughnessMap = mat.roughnessMap;
+      phys.roughnessMap.needsUpdate = true
+    }
+    if (mat.metalnessMap) {
+      phys.metalnessMap = mat.metalnessMap;
+      phys.metalnessMap.needsUpdate = true
+    }
+    if (mat.bumpMap) {
+      phys.bumpMap = mat.bumpMap;
+      phys.bumpMap.needsUpdate = true
+      phys.bumpScale = mat.bumpScale;
+    }
+    if (mat.displacementMap) {
+      phys.displacementMap = mat.displacementMap;
+      phys.displacementMap.needsUpdate = true
+      phys.displacementScale = mat.displacementScale;
+      phys.displacementBias = mat.displacementBias;
+    }
+    if (mat.name) phys.name = mat.name;
+    if (mat.userData) phys.userData = { ...mat.userData };
+  }
 
   switch (category) {
     case 'skin': {
-      p.roughness = Math.min(mat.roughness, 0.5);
-      p.metalness = 0.0;
-      p.sheen = 0.0;
-      p.clearcoat = 0.0;
-      p.envMapIntensity = 0.15;
+      phys.roughness = Math.min(phys.roughness, 0.5);
+      phys.metalness = 0.0;
+      phys.sheen = 0.0;
+      phys.clearcoat = 0.0;
+      phys.envMapIntensity = 0.15;
       break;
     }
     case 'hair': {
-      p.roughness = Math.min(mat.roughness, 0.35);
-      p.metalness = Math.min(mat.metalness, 0.05);
-      p.sheen = 0.25;
-      p.sheenRoughness = 0.4;
-      p.sheenColor = new THREE.Color(0xffffff);
-      p.clearcoat = 0.08;
-      p.clearcoatRoughness = 0.25;
-      p.envMapIntensity = 0.4;
+      phys.roughness = Math.min(phys.roughness, 0.35);
+      phys.metalness = Math.min(phys.metalness, 0.05);
+      phys.sheen = 0.25;
+      phys.sheenRoughness = 0.4;
+      phys.sheenColor = new THREE.Color(0xffffff);
+      phys.clearcoat = 0.08;
+      phys.clearcoatRoughness = 0.25;
+      phys.envMapIntensity = 0.4;
       break;
     }
     case 'eye': {
-      p.roughness = 0.05;
-      p.metalness = 0.0;
-      p.clearcoat = 0.4;
-      p.clearcoatRoughness = 0.05;
-      p.sheen = 0.0;
-      p.envMapIntensity = 0.6;
+      phys.roughness = 0.05;
+      phys.metalness = 0.0;
+      phys.clearcoat = 0.4;
+      phys.clearcoatRoughness = 0.05;
+      phys.sheen = 0.0;
+      phys.envMapIntensity = 0.6;
       break;
     }
     case 'mouth': {
-      p.roughness = Math.min(mat.roughness, 0.3);
-      p.metalness = 0.0;
-      p.clearcoat = 0.1;
-      p.clearcoatRoughness = 0.15;
-      p.sheen = 0.0;
-      p.envMapIntensity = 0.25;
+      phys.roughness = Math.min(phys.roughness, 0.3);
+      phys.metalness = 0.0;
+      phys.clearcoat = 0.1;
+      phys.clearcoatRoughness = 0.15;
+      phys.sheen = 0.0;
+      phys.envMapIntensity = 0.25;
       break;
     }
     case 'clothing': {
-      p.roughness = Math.max(mat.roughness, 0.6);
-      p.metalness = Math.min(mat.metalness, 0.05);
-      p.sheen = 0.0;
-      p.clearcoat = 0.0;
-      p.envMapIntensity = 0.2;
+      phys.roughness = Math.max(phys.roughness, 0.6);
+      phys.metalness = Math.min(phys.metalness, 0.05);
+      phys.sheen = 0.0;
+      phys.clearcoat = 0.0;
+      phys.envMapIntensity = 0.2;
       break;
     }
     default: {
-      p.roughness = mat.roughness;
-      p.metalness = mat.metalness;
-      p.envMapIntensity = 0.3;
+      phys.envMapIntensity = 0.3;
       break;
     }
   }
 
-  // Safety net: if the resulting color is still fully white (intensity ~3.0)
-  // and there's no valid texture, the FBX material relied entirely on a
-  // texture that didn't load. Fall back to a classification-based color.
-  const col = p.color as THREE.Color;
-  const colorIntensity = col.r + col.g + col.b;
-  if (colorIntensity > 2.99 && !isTextureValid(p.map ?? null)) {
-    const fallback = getFallbackColor(category);
-    col.copy(fallback);
-    console.warn(
-      `[Avatar] enhanceMaterial: white color without valid texture, ` +
-      `fallback to #${fallback.getHexString()} (${category})`
-    );
+  // Transparent material handling: WebGL2(Three.js r184+)에서
+  // transparent material은 depthWrite=false가 기본값이 아니므로 명시적 설정.
+  // renderOrder를 높여 opaque 패스 이후 렌더링되도록 보장.
+  if (phys.transparent) {
+    phys.depthWrite = false;
   }
 
-  const phys = new THREE.MeshPhysicalMaterial(p);
-
-  // Carry over userData (fixMaterial may store texture reload info here)
-  phys.userData = { ...mat.userData };
-
-  if (mat.map) phys.map!.colorSpace = mat.map.colorSpace;
-  if (mat.normalMap) phys.normalMap!.colorSpace = mat.normalMap.colorSpace;
-  if (mat.emissiveMap) phys.emissiveMap!.colorSpace = mat.emissiveMap.colorSpace;
-  if (mat.alphaMap) phys.alphaMap!.colorSpace = mat.alphaMap.colorSpace;
-
+  phys.needsUpdate = true;
   return phys;
 }
 
@@ -224,12 +360,13 @@ export function fixMaterial(mat: THREE.Material, meshName: string = ''): THREE.M
       std.opacity = 0.5;
     }
 
-    // Texture 유무와 관계없이 color intensity 체크 (검정색 렌더링 방지)
+    // Black color fix: black → light gray
     const intensity = std.color.r + std.color.g + std.color.b;
     if (intensity < 0.05) {
       std.color.setHex(0xbbbbbb);
     }
 
+    // Extreme emissive fix
     const emissiveIntensity = (std.emissive?.r ?? 0) + (std.emissive?.g ?? 0) + (std.emissive?.b ?? 0);
     if (emissiveIntensity > 2.5) {
       std.emissive.setHex(0x000000);
@@ -257,48 +394,6 @@ export function fixMaterial(mat: THREE.Material, meshName: string = ''): THREE.M
     });
 
     if (std.transparent && std.opacity < 0.1) std.opacity = 0.5;
-  }
-
-  // ── Texture validation & fallback ──────────────────────────────
-  // FBXLoader often creates placeholder or unresolved textures when
-  // the FBX file's embedded image data is missing or the external
-  // texture file can't be resolved. In that case the Texture object
-  // exists but has no pixel data → the GPU samples black → avatar
-  // appears black even though the material color is white (#ffffff).
-  //
-  // Detect this by checking the texture's image. When the texture is
-  // invalid, store its info on userData (so reloadFailedTextures can
-  // find it later), remove the map to avoid black GPU sampling, and
-  // assign a fallback color based on the material's category.
-
-  // ── Albedo (baseColor) texture validation ──────────────────────
-  if (std.map && !isTextureValid(std.map)) {
-    const category = classifyMaterial(meshName, std.name || '', false);
-
-    // Store texture identity before removing it
-    const texName = std.map.name || '';
-    const imgSrc = ((std.map.image as any)?.src as string) || '';
-    std.userData = std.userData || {};
-    std.userData._fbxTextureName = texName;
-    std.userData._fbxTextureSrc = imgSrc;
-    console.warn(
-      `[Avatar] ${meshName}: albedo INVALID (name="${texName}" src="${imgSrc}"), ` +
-      `storing for async reload, fallback to #${getFallbackColor(category).getHexString()} (${category})`
-    );
-
-    std.map = null;
-    std.color.copy(getFallbackColor(category));
-  }
-
-  // ── Normal map validation ──────────────────────────────────────
-  // FBXLoader may also create placeholder normal maps. Remove them so
-  // reloadFailedTextures() can load the correct ones from VRM mapping.
-  if (std.normalMap && !isTextureValid(std.normalMap)) {
-    const texName = std.normalMap.name || '';
-    console.warn(`[Avatar] ${meshName}: normalMap INVALID (name="${texName}"), will reload`);
-    std.normalMap = null;
-    std.userData = std.userData || {};
-    std.userData._fbxNormalMapInvalid = true;
   }
 
   // ── Color space correction ─────────────────────────────────────
@@ -364,7 +459,6 @@ export function removeGroundPlanes(group: THREE.Group): void {
       nameHint.includes('platform');
 
     // Large box/plane positioned at ground level (under avatar's feet)
-    // Covers: shadow catchers, ground planes, debug boxes
     const isLargeBoxAtGround =
       (geoType.includes('Box') || geoType.includes('Plane')) &&
       Math.abs(worldPos.y) < 0.05 &&
@@ -387,6 +481,76 @@ export function removeGroundPlanes(group: THREE.Group): void {
 
   toRemove.forEach((mesh) => {
     if (mesh.parent) mesh.parent.remove(mesh);
+  });
+}
+
+// ── Outline Removal ────────────────────────────────────────────────
+
+/**
+ * VRM models exported with MToon outline support may contain separate
+ * outline meshes that render on top of base meshes. These can occlude
+ * hair/eye textures if the outline material is opaque or improperly
+ * configured. This function detects and hides outline meshes.
+ */
+export function hideOutlineMeshes(group: THREE.Group): void {
+  group.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    const name = mesh.name.toLowerCase();
+
+    // Outline detection by naming convention
+    const nameIsOutline =
+      name.includes('outline') ||
+      name.includes('out_line') ||
+      name.includes('_out_') ||
+      name.endsWith('_out') ||
+      name.startsWith('out_');
+
+    if (nameIsOutline) {
+      mesh.visible = false;
+      console.log(`[avatar] Hiding outline mesh: "${mesh.name}"`);
+      return;
+    }
+
+    // Multi-material mesh: VRM MToon outlines use a SECOND material/primitive
+    // on the SAME mesh (e.g. [Skin, Skin (Outline)]). We can't reduce the array
+    // length because geometry groups are indexed by position. Instead, set outline
+    // materials to fully transparent so the base primitive renders normally.
+    if (Array.isArray(mesh.material)) {
+      let hadOutline = false;
+      for (let i = 0; i < mesh.material.length; i++) {
+        const mat = mesh.material[i];
+        if (mat && mat.name?.toLowerCase().includes('outline')) {
+          mat.opacity = 0;
+          mat.transparent = true;
+          hadOutline = true;
+        }
+      }
+      if (hadOutline) {
+        console.log(`[avatar] Disabled outline materials on: "${mesh.name}"`);
+      }
+    } else if (mesh.material?.name?.toLowerCase().includes('outline')) {
+      mesh.visible = false;
+      console.log(`[avatar] Hiding outline mesh: "${mesh.name}"`);
+    }
+  });
+}
+
+/**
+ * Set renderOrder for transparent meshes so they render after opaque ones.
+ * This prevents depth-related rendering artifacts for hair, eye, and other
+ * transparent/alpha-blended geometry.
+ */
+export function sortTransparentMeshes(group: THREE.Group): void {
+  let order = 1;
+  group.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const isTransparent = mats.some(m => m.transparent);
+    if (isTransparent) {
+      mesh.renderOrder = order++;
+    }
   });
 }
 
@@ -438,289 +602,85 @@ export function createPlaceholderAvatar(): IAvatar {
   };
 }
 
-// ── Direct Texture Loading ─────────────────────────────────────────
-
-/**
- * Load a texture file using `Image` directly (no crossOrigin).
- *
- * Three.js's built-in `TextureLoader` defaults to `crossOrigin = 'anonymous'`,
- * which breaks image loading from `file://` URLs in Electron (file:// origins
- * don't support CORS). By creating an HTMLImageElement ourselves and NOT
- * setting crossOrigin, the browser happily loads local images for WebGL
- * rendering (only canvas readback would be blocked, which we don't need).
- */
-async function loadTextureDirect(path: string): Promise<THREE.Texture | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    let settled = false;
-
-    const onLoad = () => {
-      if (settled) return;
-      settled = true;
-      const texture = new THREE.Texture(img);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.needsUpdate = true;
-      resolve(texture);
-    };
-
-    const onError = () => {
-      if (settled) return;
-      settled = true;
-      console.warn(`[Avatar] Failed to load image: ${path}`);
-      resolve(null);
-    };
-
-    img.onload = onLoad;
-    img.onerror = onError;
-    img.src = path;
-
-    // Safety timeout: if neither onload nor onerror fires (e.g. in test
-    // environments where Image loading is stubbed), resolve with null.
-    setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        console.warn(`[Avatar] Texture load timeout: ${path}`);
-        resolve(null);
-      }
-    }, 100);
-  });
-}
-
-/**
- * VRM-derived texture mapping for the Noah avatar.
- *
- * The FBX file (exported from VRM) has 3 meshes — "Face", "Body", "Hair" —
- * each with multiple primitives (multi-material). The VRM JSON tells us
- * exactly which texture file each primitive should use.
- *
- * FBXLoader creates placeholder textures because the FBX's texture-to-Video
- * connections aren't parsed correctly. We bypass this by loading textures
- * directly using the known VRM mapping.
- */
-interface TextureSlot {
-  albedo: string;        // baseColor texture filename
-  normal?: string;       // normal texture filename (optional)
-}
-
-const VRM_TEXTURE_MAP: Record<string, TextureSlot[]> = {
-  'Face': [
-    { albedo: '_01.png', normal: 'Shader_NoneNormal.png' },  // FaceMouth
-    { albedo: '_02.png', normal: 'Shader_NoneNormal.png' },  // EyeIris
-    { albedo: '_03.png', normal: 'Shader_NoneNormal.png' },  // EyeHighlight
-    { albedo: '_04.png', normal: '_05.png' },                 // Face_SKIN
-    { albedo: '_06.png', normal: 'Shader_NoneNormal.png' },  // EyeWhite
-    { albedo: '_07.png', normal: 'Shader_NoneNormal.png' },  // FaceBrow
-    { albedo: '_08.png', normal: 'Shader_NoneNormal.png' },  // FaceEyelash
-    { albedo: '_09.png', normal: 'Shader_NoneNormal.png' },  // FaceEyeline
-  ],
-  'Body': [
-    { albedo: '_10.png', normal: '_11.png' },                        // Body_SKIN
-    { albedo: '_12.png', normal: 'N00_000_00_HairBack_00_nml.png' }, // HairBack
-    { albedo: '_13.png', normal: 'Shader_NoneNormal.png' },          // Bottoms
-    { albedo: '_14.png', normal: 'Shader_NoneNormal.png' },          // Tops
-    { albedo: '_15.png', normal: 'Shader_NoneNormal.png' },          // Shoes_01
-    { albedo: '_16.png', normal: 'Shader_NoneNormal.png' },          // Shoes_02
-    { albedo: '_17.png', normal: 'Shader_NoneNormal.png' },          // Onepiece
-  ],
-  'Hair': [
-    { albedo: '_18.png', normal: 'N00_000_Hair_00_nml_01.png' },    // Hair
-  ],
-};
-
-/**
- * Resolve the mesh base-name used for texture lookup.
- * FBX meshes may be nested under groups, so we strip suffixes like "001".
- */
-function resolveMeshBaseName(mesh: THREE.Mesh): string {
-  const raw = mesh.name || '';
-  // Remove trailing digits like "001" (e.g., "Hair001" → "Hair")
-  const base = raw.replace(/\d+$/, '');
-  // Try exact match first, then base match
-  if (VRM_TEXTURE_MAP[raw]) return raw;
-  if (VRM_TEXTURE_MAP[base]) return base;
-  // Fallback: search case-insensitively
-  for (const key of Object.keys(VRM_TEXTURE_MAP)) {
-    if (raw.toLowerCase().includes(key.toLowerCase())) return key;
-  }
-  return raw;
-}
-
-/**
- * Reload textures using the VRM-derived mapping.
- *
- * The FBXLoader creates placeholder textures with name="base_color_texture"
- * and no image data. This function looks up the correct texture filenames
- * from VRM_TEXTURE_MAP based on the mesh name and primitive index, loads
- * them via Image (no crossOrigin), and applies them to the material.
- */
-async function reloadFailedTextures(mesh: THREE.Mesh): Promise<void> {
-  const baseName = resolveMeshBaseName(mesh);
-  const slots = VRM_TEXTURE_MAP[baseName];
-  if (!slots) {
-    console.warn(`[Avatar] No VRM texture mapping for "${mesh.name}" (base="${baseName}")`);
-    return;
-  }
-
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-
-  for (let i = 0; i < materials.length; i++) {
-    const mat = materials[i] as any;
-    if (!mat) continue;
-
-    // Skip if this material already has a valid texture
-    if (mat.map && isTextureValid(mat.map)) continue;
-
-    const slot = slots[i];
-    if (!slot) {
-      console.warn(`[Avatar] ${mesh.name}[${i}]: no VRM texture slot defined`);
-      continue;
-    }
-
-    // Load albedo (baseColor) texture
-    const albedoPath = `./textures/${slot.albedo}`;
-    console.log(`[Avatar] Loading texture: ${albedoPath} (for ${mesh.name}[${i}])`);
-    const newTex = await loadTextureDirect(albedoPath);
-    if (newTex) {
-      mat.map = newTex;
-      mat.color.setHex(0xffffff);
-      mat.needsUpdate = true;
-      console.log(`[Avatar] Texture OK: ${albedoPath} → ${mesh.name}[${i}]`);
-    } else {
-      console.warn(`[Avatar] Failed to load: ${albedoPath} — keeping fallback`);
-      continue;
-    }
-
-    // Load normal map if available
-    if (slot.normal) {
-      const normalPath = `./textures/${slot.normal}`;
-      console.log(`[Avatar] Loading normal: ${normalPath} (for ${mesh.name}[${i}])`);
-      const normalTex = await loadTextureDirect(normalPath);
-      if (normalTex) {
-        normalTex.colorSpace = THREE.LinearSRGBColorSpace;
-        mat.normalMap = normalTex;
-        // VRM normal maps use OpenGL convention (Y+ up). Three.js defaults
-        // to Y+ up, but some VRM exporters flip Y. Start with (1, 1) and
-        // allow override via userData if needed.
-        mat.normalScale = new THREE.Vector2(1, 1);
-        mat.needsUpdate = true;
-        console.log(`[Avatar] Normal OK: ${normalPath} → ${mesh.name}[${i}]`);
-      } else {
-        console.warn(`[Avatar] Failed to load normal: ${normalPath}`);
-      }
-    }
-  }
-}
-
-// ── FBX Avatar Loading ─────────────────────────────────────────────
-
-/** Internal type for loader injection (testing) */
-type LoaderFactory = () => Promise<{ FBXLoader: typeof import('three/examples/jsm/loaders/FBXLoader.js').FBXLoader }>;
+// ── VRM/GLTF Avatar Loading ────────────────────────────────────────
 
 export async function loadAvatar(
   config: AvatarConfig,
-  loaderFactory?: LoaderFactory
 ): Promise<IAvatar> {
-  const mod = loaderFactory ? await loaderFactory() : await getFBXLoader();
-  const loader = new mod.FBXLoader();
+  const modelPathRaw = config.modelPath ?? './models/noah.glb';
+  const modelPath = modelPathRaw.startsWith('./') ? modelPathRaw.slice(2) : modelPathRaw;
 
-  const object = await new Promise<THREE.Group>((resolve, reject) => {
-    loader.load(
-      config.modelPath,
-      (obj) => resolve(obj),
-      undefined,
-      (err) => reject(err)
-    );
+  const loader = getGLTFLoader();
+  const gltf = await loader.loadAsync(modelPath);
+  const vrm = gltf.userData.vrm;
+  const scene = gltf.scene;
+
+  console.log('[avatar] GLB loaded:', {
+    childCount: scene.children.length, path: modelPath, hasVRM: !!vrm,
   });
 
-  const scale = config.scale ?? 0.01;
-  object.scale.set(scale, scale, scale);
+  // scale 적용
+  const scale = config.scale ?? 1.0;
+  scene.scale.set(scale, scale, scale);
+  if (config.position) scene.position.copy(config.position);
 
-  if (config.position) {
-    object.position.copy(config.position);
-  } else {
-    object.position.set(0, 0, 0);
-  }
-
+  // AnimationMixer
   let mixer: THREE.AnimationMixer | null = null;
-  const animations: THREE.AnimationClip[] = [];
-
-  if (object.animations && object.animations.length > 0) {
-    mixer = new THREE.AnimationMixer(object);
-    animations.push(...object.animations);
+  if (gltf.animations && gltf.animations.length > 0) {
+    mixer = new THREE.AnimationMixer(scene);
   }
 
-  // ── Material setup (synchronous) ──────────────────────────────────
-  const meshesWithTextures: THREE.Mesh[] = [];
+  // 기본 mesh 설정 (shadow, cleanup)
+  //
+  // CRITICAL: @pixiv/three-vrm plugin이 모든 MToon material을 Three.js에서
+  // 렌더링 가능한 형태로 변환한다. texture, blend mode, alpha, shader가
+  // 모두 올바르게 설정됨. 여기서 enhanceMaterial/convertMToonToStandard를
+  // 호출하면 VRM plugin의 작업을 덮어쓰고 새 MeshPhysicalMaterial을 생성하여
+  // texture metadata, ImageBitmap compatibility, shader 설정을 전부 파괴한다.
+  //
+  // 따라서 VRM 모델은 skipMaterialFix=true가 기본 동작.
+  const shouldFixMaterials = !vrm && !config.skipMaterialFix;
 
-  object.traverse((child) => {
-    if ((child as THREE.Mesh).isMesh) {
-      const mesh = child as THREE.Mesh;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+  scene.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
-      // DEBUG: Log original material before any modification
-      const origMat = mesh.material;
-      const mats = Array.isArray(origMat) ? origMat : [origMat];
-      mats.forEach((m, i) => {
-        if (m) {
-          const c = (m as any).color;
-          const map = (m as any).map;
-          console.log(`[Avatar DEBUG] ${mesh.name} mat${i}:`);
-          console.log(`  type=${m.type}`);
-          console.log(`  color=${c ? '#' + c.getHexString() : 'N/A'}`);
-          console.log(`  intensity=${c ? (c.r + c.g + c.b).toFixed(4) : 'N/A'}`);
-          console.log(`  map=${map ? (map.name || 'loaded') : 'none'}`);
-          console.log(`  roughness=${(m as any).roughness} metalness=${(m as any).metalness}`);
+    if (shouldFixMaterials) {
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mesh.material = mats.map(m => {
+        const anyM = m as any;
+        if (anyM.isMToonMaterial) {
+          const std = convertMToonToStandard(anyM);
+          const category = classifyMaterial(mesh.name, std.name || '', !!std.map);
+          return enhanceMaterial(std, category);
         }
+        if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+          const category = classifyMaterial(mesh.name, m.name || '', !!(m as any).map);
+          return enhanceMaterial(m as THREE.MeshStandardMaterial, category);
+        }
+        return m;
       });
-
-      if (!config.skipMaterialFix) {
-        const mat = mesh.material;
-        if (Array.isArray(mat)) {
-          mesh.material = mat.map((m) => fixMaterial(m, mesh.name));
-        } else if (mat) {
-          mesh.material = fixMaterial(mat, mesh.name);
-        }
-      }
-
-      // Track meshes that have a VRM texture mapping for async reload
-      const fixedMat = mesh.material;
-      const fixedMats = Array.isArray(fixedMat) ? fixedMat : [fixedMat];
-      let hasVrmSlot = false;
-      const baseName = resolveMeshBaseName(mesh);
-      fixedMats.forEach((m, i) => {
-        if (m) {
-          const c = (m as any).color;
-          const slot = VRM_TEXTURE_MAP[baseName]?.[i];
-          console.log(`[Avatar DEBUG] ${mesh.name} mat${i} FIXED: type=${m.type} color=${c ? '#' + c.getHexString() : 'N/A'} intensity=${c ? (c.r + c.g + c.b).toFixed(4) : 'N/A'} vrm=${slot ? slot.albedo : 'none'}`);
-          if (slot) hasVrmSlot = true;
-        }
-      });
-      if (hasVrmSlot) meshesWithTextures.push(mesh);
     }
   });
 
-  removeEmbeddedLights(object);
-  removeGroundPlanes(object);
-
-  // ── Async texture reload ─────────────────────────────────────────
-  // FBXLoader's internal TextureLoader fails to load textures from
-  // file:// URLs due to crossOrigin='anonymous'. Reload them manually.
-  if (meshesWithTextures.length > 0) {
-    console.log(`[Avatar] Reloading ${meshesWithTextures.length} meshes with invalid textures...`);
-    await Promise.all(meshesWithTextures.map((mesh) => reloadFailedTextures(mesh)));
-  }
+  removeEmbeddedLights(scene);
+  removeGroundPlanes(scene);
 
   return {
-    group: object,
+    group: scene,
     mixer,
-    animations,
-    update(delta: number) {
+    animations: gltf.animations || [],
+    vrm: vrm || undefined,
+    update(delta) {
+      if (vrm && typeof vrm.update === 'function') vrm.update(delta);
       if (mixer) mixer.update(delta);
     },
     dispose() {
       if (mixer) mixer.stopAllAction();
-      object.traverse((child) => {
+      if (vrm) vrm.dispose();
+      scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
           mesh.geometry.dispose();
