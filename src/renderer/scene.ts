@@ -34,6 +34,11 @@ renderer.setClearColor(0x000000, 0); // Fully transparent clear
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+// Tone mapping and color spaces for PBR (MeshPhysicalMaterial) rendering
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
 // WebGL context loss handling
 renderer.domElement.addEventListener('webglcontextlost', (event) => {
   console.error('WebGL context lost!', event);

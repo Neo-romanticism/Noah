@@ -7,6 +7,8 @@ import {
   createPlaceholderAvatar,
   enhanceMaterial,
   fixMaterial,
+  isTextureValid,
+  getFallbackColor,
   removeEmbeddedLights,
   removeGroundPlanes,
 } from '../../src/renderer/avatar.js';
@@ -47,6 +49,79 @@ describe('Avatar System', () => {
     });
   });
 
+  describe('isTextureValid', () => {
+    test('returns false for null/undefined', () => {
+      expect(isTextureValid(null)).toBe(false);
+      expect(isTextureValid(undefined)).toBe(false);
+    });
+
+    test('returns false when texture has no image', () => {
+      const tex = new THREE.Texture();
+      expect(isTextureValid(tex)).toBe(false);
+    });
+
+    test('returns true when HTMLImageElement is still loading (optimistic)', () => {
+      // FBXLoader creates textures from blob URLs for embedded images.
+      // The Image 'load' event fires asynchronously, so we optimistically
+      // consider still-loading textures as valid.
+      const tex = new THREE.Texture();
+      const img = { complete: false } as HTMLImageElement;
+      tex.image = img;
+      expect(isTextureValid(tex)).toBe(true);
+    });
+
+    test('returns false when HTMLImageElement has naturalWidth 0', () => {
+      const tex = new THREE.Texture();
+      const img = { complete: true, naturalWidth: 0, naturalHeight: 0 } as HTMLImageElement;
+      tex.image = img;
+      expect(isTextureValid(tex)).toBe(false);
+    });
+
+    test('returns true when HTMLImageElement is valid', () => {
+      const tex = new THREE.Texture();
+      const img = { complete: true, naturalWidth: 128, naturalHeight: 128 } as HTMLImageElement;
+      tex.image = img;
+      expect(isTextureValid(tex)).toBe(true);
+    });
+
+    test('returns true when ImageBitmap has dimensions', () => {
+      const tex = new THREE.Texture();
+      const bmp = { width: 64, height: 64 } as ImageBitmap;
+      tex.image = bmp;
+      expect(isTextureValid(tex)).toBe(true);
+    });
+
+    test('returns false when ImageBitmap has zero dimensions', () => {
+      const tex = new THREE.Texture();
+      const bmp = { width: 0, height: 0 } as ImageBitmap;
+      tex.image = bmp;
+      expect(isTextureValid(tex)).toBe(false);
+    });
+
+    test('returns true for canvas elements', () => {
+      const tex = new THREE.Texture();
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      tex.image = canvas;
+      expect(isTextureValid(tex)).toBe(true);
+    });
+  });
+
+  describe('getFallbackColor', () => {
+    test('returns bisque for skin', () => {
+      expect(getFallbackColor('skin').getHex()).toBe(0xffe4c4);
+    });
+
+    test('returns dark brown for hair', () => {
+      expect(getFallbackColor('hair').getHex()).toBe(0x4a3728);
+    });
+
+    test('returns light gray for unknown category', () => {
+      expect(getFallbackColor('unknown').getHex()).toBe(0xbbbbbb);
+    });
+  });
+
   describe('enhanceMaterial', () => {
     test('returns MeshPhysicalMaterial', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -54,39 +129,55 @@ describe('Avatar System', () => {
       expect(enhanced).toBeInstanceOf(THREE.MeshPhysicalMaterial);
     });
 
-    test('skin category has transmission and sheen', () => {
+    test('skin category has no sheen, no clearcoat, and low envMapIntensity', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
       const enhanced = enhanceMaterial(mat, 'skin');
-      expect(enhanced.transmission).toBe(0.08);
-      expect(enhanced.sheen).toBe(0.3);
-      expect(enhanced.ior).toBe(1.4);
+      expect(enhanced.sheen).toBe(0);
+      expect(enhanced.clearcoat).toBe(0);
+      expect(enhanced.transmission).toBe(0);
+      expect(enhanced.roughness).toBeLessThanOrEqual(0.5);
+      expect(enhanced.envMapIntensity).toBe(0.15);
     });
 
-    test('hair category has high sheen and clearcoat', () => {
+    test('hair category has moderate sheen and low clearcoat', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0x332211 });
       const enhanced = enhanceMaterial(mat, 'hair');
-      expect(enhanced.sheen).toBe(0.6);
-      expect(enhanced.clearcoat).toBe(0.15);
+      expect(enhanced.sheen).toBe(0.25);
+      expect(enhanced.clearcoat).toBe(0.08);
+      expect(enhanced.envMapIntensity).toBe(0.4);
     });
 
-    test('eye category has low roughness and high clearcoat', () => {
+    test('eye category has low roughness and moderate clearcoat', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0x3366cc });
       const enhanced = enhanceMaterial(mat, 'eye');
       expect(enhanced.roughness).toBe(0.05);
-      expect(enhanced.clearcoat).toBe(1.0);
+      expect(enhanced.clearcoat).toBe(0.4);
+      expect(enhanced.envMapIntensity).toBe(0.6);
     });
 
-    test('clothing category has high roughness, no clearcoat', () => {
+    test('clothing category has high roughness, no clearcoat, no sheen', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0xcc3333, roughness: 0.3 });
       const enhanced = enhanceMaterial(mat, 'clothing');
       expect(enhanced.roughness).toBeGreaterThanOrEqual(0.6);
       expect(enhanced.clearcoat).toBe(0.0);
+      expect(enhanced.sheen).toBe(0.0);
+      expect(enhanced.envMapIntensity).toBe(0.2);
     });
 
     test('preserves original color', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0x123456 });
       const enhanced = enhanceMaterial(mat, 'default');
       expect(enhanced.color.getHex()).toBe(0x123456);
+    });
+
+    test('fallbacks from white to category color when texture is invalid', () => {
+      // FBX material with white color (texture-only) and invalid texture
+      const tex = new THREE.Texture(); // no image → invalid
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex });
+      const enhanced = enhanceMaterial(mat, 'skin');
+      // Should fallback to skin color, not remain white
+      expect(enhanced.color.getHex()).not.toBe(0xffffff);
+      expect(enhanced.color.getHex()).toBe(0xffe4c4);
     });
   });
 
@@ -111,13 +202,39 @@ describe('Avatar System', () => {
     test('classifies face mesh as skin', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0xffccaa, name: 'Face_Mat' });
       const fixed = fixMaterial(mat, 'Face') as THREE.MeshPhysicalMaterial;
-      expect(fixed.transmission).toBe(0.08);
+      expect(fixed.sheen).toBe(0);
+      expect(fixed.clearcoat).toBe(0);
     });
 
     test('classifies hair mesh as hair', () => {
       const mat = new THREE.MeshStandardMaterial({ color: 0x332211, name: 'Hair_Mat' });
       const fixed = fixMaterial(mat, 'Hair') as THREE.MeshPhysicalMaterial;
-      expect(fixed.sheen).toBe(0.6);
+      expect(fixed.sheen).toBe(0.25);
+    });
+
+    test('fallbacks white color to skin color for Face mesh with invalid texture', () => {
+      // Simulate FBXLoader: white color (texture-only) + invalid texture
+      const tex = new THREE.Texture(); // no image → isTextureValid returns false
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: tex,
+        name: 'Face_Mat',
+      });
+      const fixed = fixMaterial(mat, 'Face') as THREE.MeshPhysicalMaterial;
+      // Should fallback to skin color
+      expect(fixed.color.getHex()).toBe(0xffe4c4);
+    });
+
+    test('fallbacks white color to hair color for Hair mesh with invalid texture', () => {
+      const tex = new THREE.Texture(); // no image → invalid
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: tex,
+        name: 'Hair_Mat',
+      });
+      const fixed = fixMaterial(mat, 'Hair') as THREE.MeshPhysicalMaterial;
+      // Should fallback to hair color
+      expect(fixed.color.getHex()).toBe(0x4a3728);
     });
   });
 

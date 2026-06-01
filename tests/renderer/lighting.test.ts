@@ -18,8 +18,8 @@ describe('Lighting', () => {
       expect(setup.sun).toBeInstanceOf(THREE.DirectionalLight);
     });
 
-    test('ambient should have intensity 0.3', () => {
-      expect(setup.ambient.intensity).toBe(0.3);
+    test('ambient should have intensity 0.8', () => {
+      expect(setup.ambient.intensity).toBe(0.8);
     });
 
     test('sun should be DirectionalLight with castShadow = true', () => {

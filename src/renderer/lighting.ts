@@ -7,12 +7,12 @@ export interface LightingSetup {
 }
 
 export function createLighting(): LightingSetup {
-  // Ambient light — softer than the previous 0.6
-  const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+  // Ambient light — increased intensity for MeshPhysicalMaterial rendering
+  const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 
-  // Directional light (sun) — positioned behind and above the window
-  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-  sun.position.set(3, 6, -2);
+  // Directional light (sun) — positioned to illuminate avatar from front
+  const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+  sun.position.set(-2, 5, 3);
   sun.castShadow = true;
 
   // Shadow map configuration
