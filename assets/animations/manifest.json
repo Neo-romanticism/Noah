@@ -1,0 +1,12 @@
+{
+  "idle":  { "file": "idle.glb",  "loop": true,  "priority": 0, "blendIn": 0.3, "blendOut": 0.3 },
+  "drag":  { "file": "drag.glb",  "loop": true,  "priority": 2, "blendIn": 0.15, "blendOut": 0.2 },
+  "throw": { "file": "throw.glb", "loop": false, "priority": 3, "blendIn": 0.1, "blendOut": 0.15 },
+  "land":  { "file": "land.glb",  "loop": false, "priority": 2, "blendIn": 0.1, "blendOut": 0.15 },
+  "dizzy": { "file": "dizzy.glb", "loop": true,  "priority": 1, "blendIn": 0.2, "blendOut": 0.2 },
+  "eat":   { "file": "eat.glb",   "loop": true,  "priority": 1, "blendIn": 0.2, "blendOut": 0.2 },
+  "sleep": { "file": "sleep.glb", "loop": true,  "priority": 1, "blendIn": 0.5, "blendOut": 0.3 },
+  "happy": { "file": "happy.glb", "loop": true,  "priority": 1, "blendIn": 0.2, "blendOut": 0.2 },
+  "sad":   { "file": "sad.glb",   "loop": true,  "priority": 1, "blendIn": 0.3, "blendOut": 0.3 },
+  "angry": { "file": "angry.glb", "loop": true,  "priority": 2, "blendIn": 0.15, "blendOut": 0.2 }
+}

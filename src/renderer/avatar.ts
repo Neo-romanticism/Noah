@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+import type { AnimationController } from './animation/types.js';
+import { createAnimationController } from './animation/controller.js';
+import { createPlaceholderAnimController, type PlaceholderParts } from './animation/placeholder.js';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -8,6 +11,7 @@ export interface IAvatar {
   group: THREE.Group;
   mixer: THREE.AnimationMixer | null;
   animations: THREE.AnimationClip[];
+  animationController: AnimationController;
   vrm?: any;
   update(delta: number): void;
   dispose(): void;
@@ -584,12 +588,19 @@ export function createPlaceholderAvatar(): IAvatar {
   rightEye.position.set(0.04, 0.74, 0.1);
   group.add(rightEye);
 
+  const parts: PlaceholderParts = { body, head, leftEye, rightEye };
+  const animationController = createPlaceholderAnimController(parts, group);
+
   return {
     group,
     mixer: null,
     animations: [],
-    update() { /* no-op */ },
+    animationController,
+    update(delta) {
+      animationController.update(delta);
+    },
     dispose() {
+      animationController.dispose();
       group.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
@@ -668,16 +679,21 @@ export async function loadAvatar(
   removeEmbeddedLights(scene);
   removeGroundPlanes(scene);
 
+  const animationController = createAnimationController(scene, gltf.animations || []);
+
   return {
     group: scene,
     mixer,
     animations: gltf.animations || [],
+    animationController,
     vrm: vrm || undefined,
     update(delta) {
       if (vrm && typeof vrm.update === 'function') vrm.update(delta);
       if (mixer) mixer.update(delta);
+      animationController.update(delta);
     },
     dispose() {
+      animationController.dispose();
       if (mixer) mixer.stopAllAction();
       if (vrm) vrm.dispose();
       scene.traverse((child) => {

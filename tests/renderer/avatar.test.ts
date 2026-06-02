@@ -14,15 +14,19 @@ import {
   hideOutlineMeshes,
   sortTransparentMeshes,
 } from '../../src/renderer/avatar.js';
+import type { AnimationController } from '../../src/renderer/animation/types.js';
 
 describe('Avatar System', () => {
   describe('createPlaceholderAvatar', () => {
-    test('returns IAvatar with group, null mixer, empty animations', () => {
+    test('returns IAvatar with group, null mixer, empty animations, and animationController', () => {
       const avatar = createPlaceholderAvatar();
 
       expect(avatar.group).toBeInstanceOf(THREE.Group);
       expect(avatar.mixer).toBeNull();
       expect(avatar.animations).toEqual([]);
+      expect(avatar.animationController).toBeDefined();
+      expect(avatar.animationController.play).toBeInstanceOf(Function);
+      expect(avatar.animationController.update).toBeInstanceOf(Function);
     });
 
     test('group contains body, head, and two eyes (4 meshes)', () => {
@@ -40,12 +44,20 @@ describe('Avatar System', () => {
       expect(meshes[3].castShadow).toBe(false); // right eye
     });
 
-    test('update() does not throw without mixer', () => {
+    test('update() drives animation controller without throwing', () => {
       const avatar = createPlaceholderAvatar();
       expect(() => avatar.update(0.016)).not.toThrow();
     });
 
-    test('dispose() cleans up geometries and materials', () => {
+    test('update() animates body position via placeholder controller', () => {
+      const avatar = createPlaceholderAvatar();
+      const initialY = (avatar.group.children[0] as THREE.Mesh).position.y;
+      avatar.update(0.5);
+      const updatedY = (avatar.group.children[0] as THREE.Mesh).position.y;
+      expect(updatedY).not.toBe(initialY);
+    });
+
+    test('dispose() cleans up geometries, materials, and animation controller', () => {
       const avatar = createPlaceholderAvatar();
       expect(() => avatar.dispose()).not.toThrow();
     });

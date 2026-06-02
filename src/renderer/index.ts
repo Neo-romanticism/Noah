@@ -9,6 +9,7 @@ import { createWeatherEffects } from './weather.js';
 import { deriveWeather } from '../shared/utils/sensory.js';
 import { createInteractionManager } from './interaction/index.js';
 import { loadAvatar, createPlaceholderAvatar, type IAvatar } from './avatar.js';
+import { AnimationSystem } from './animation/index.js';
 import type { SystemWeather } from '../shared/types/index.js';
 
 const container = document.getElementById('scene-container');
@@ -35,17 +36,64 @@ scene.add(weatherFx.sunBeams);
 const metricsDisplay = createMetricsDisplay();
 metricsDisplay.addToScene(scene);
 
-// ── Interaction system ──────────────────────────────────────────
-const interaction = createInteractionManager(camera, renderer.domElement);
+// ── Renderer ─────────────────────────────────────────────────────
+container.appendChild(renderer.domElement);
 
-interaction.register(metricsDisplay.cpuMetric.bar, {
-  hoverenter() { metricsDisplay.cpuMetric.setHovered(true); },
-  hoverleave() { metricsDisplay.cpuMetric.setHovered(false); },
-});
-interaction.register(metricsDisplay.ramMetric.bar, {
-  hoverenter() { metricsDisplay.ramMetric.setHovered(true); },
-  hoverleave() { metricsDisplay.ramMetric.setHovered(false); },
-});
+console.log('Noah renderer initialized. Loading VRM avatar...');
+
+// ── Avatar & Animation (async) ─────────────────────────────────────
+let avatar: IAvatar;
+let animationSystem: AnimationSystem;
+
+(async () => {
+  try {
+    const loaded = await loadAvatar({
+      modelPath: './models/noah.glb',
+      scale: 1.0,
+      position: new THREE.Vector3(0, 0, 0.5),
+    });
+    avatar = loaded;
+    console.log('[Avatar] VRM loaded successfully');
+  } catch (err) {
+    console.error('[Avatar] Failed to load VRM, using placeholder:', err);
+    avatar = createPlaceholderAvatar();
+  }
+  scene.add(avatar.group);
+
+  animationSystem = new AnimationSystem(avatar, './animations/manifest.json');
+  await animationSystem.initialize();
+
+  // ── Interaction system (after avatar/animation ready) ──────────
+  const interaction = createInteractionManager(camera, renderer.domElement);
+
+  interaction.register(metricsDisplay.cpuMetric.bar, {
+    hoverenter() { metricsDisplay.cpuMetric.setHovered(true); },
+    hoverleave() { metricsDisplay.cpuMetric.setHovered(false); },
+  });
+  interaction.register(metricsDisplay.ramMetric.bar, {
+    hoverenter() { metricsDisplay.ramMetric.setHovered(true); },
+    hoverleave() { metricsDisplay.ramMetric.setHovered(false); },
+  });
+
+  interaction.setEventCallbacks({
+    onDragStart() {
+      animationSystem.playInteraction('drag');
+    },
+    onDragEnd(velocity) {
+      const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+      animationSystem.playTrigger(speed > 5 ? 'throw' : 'land');
+    },
+    onPetStart() {
+      animationSystem.playInteraction('pet');
+    },
+    onClick() {
+      animationSystem.playInteraction('click');
+    },
+  });
+
+  // Register avatar group for interaction
+  interaction.register(avatar.group);
+})();
 
 // ── IPC ──────────────────────────────────────────────────────────
 const noah = window.noah;
@@ -68,36 +116,13 @@ noah.onSystemMetrics((metrics: SystemMetrics) => {
   currentWeather = deriveWeather(metrics);
 });
 
-// ── Renderer ─────────────────────────────────────────────────────
-container.appendChild(renderer.domElement);
-
-console.log('Noah renderer initialized. Loading VRM avatar...');
-
-// ── Avatar (async) ─────────────────────────────────────────────────
-let avatar: IAvatar;
-
-(async () => {
-  try {
-    const loaded = await loadAvatar({
-      modelPath: './models/noah.glb',
-      scale: 1.0,
-      position: new THREE.Vector3(0, 0, 0.5),
-    });
-    avatar = loaded;
-    console.log('[Avatar] VRM loaded successfully');
-  } catch (err) {
-    console.error('[Avatar] Failed to load VRM, using placeholder:', err);
-    avatar = createPlaceholderAvatar();
-  }
-  scene.add(avatar.group);
-})();
-
 const clock = new THREE.Clock();
 let frameCount = 0;
 
 function update(_weather: SystemWeather, delta: number): void {
   weatherFx.update(_weather, delta);
   if (avatar) avatar.update(delta);
+  if (animationSystem) animationSystem.update(delta);
 }
 
 function animate(): void {

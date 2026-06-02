@@ -48,7 +48,24 @@ describe('VRM Avatar Loading', () => {
     const avatar = createPlaceholderAvatar();
     expect(avatar.group).toBeInstanceOf(THREE.Group);
     expect(avatar.mixer).toBeNull();
+    expect(avatar.animationController).toBeDefined();
+    expect(avatar.animationController.getCurrentTrigger()).toBe('idle');
     avatar.update(0.016);
     expect(() => avatar.dispose()).not.toThrow();
+  });
+
+  test('placeholder avatar animation controller starts idle animation', () => {
+    const avatar = createPlaceholderAvatar();
+    const ctrl = avatar.animationController;
+    expect(ctrl.getCurrentTrigger()).toBe('idle');
+    expect(ctrl.getQueuedCount()).toBe(0);
+  });
+
+  test('placeholder avatar animation controller accepts play requests', () => {
+    const avatar = createPlaceholderAvatar();
+    const ctrl = avatar.animationController;
+    const result = ctrl.play({ trigger: 'happy', priority: 1, blendIn: 0.2 });
+    expect(result).toBe(true);
+    expect(ctrl.getCurrentTrigger()).toBe('happy');
   });
 });
