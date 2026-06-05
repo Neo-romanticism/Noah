@@ -46,7 +46,7 @@ By the end of this stage, Noah will blink, breathe (idle), react to being dragge
 
 | Component | Priority | Details |
 |-----------|----------|---------|
-| Animation asset files | 🔴 Critical | `assets/animations/` is empty — no `.fbx` or `.glb` animation files exist |
+| Animation asset files | 🔴 Critical | `assets/animations/` contains 10 `.glb` files (idle, drag, throw, land, dizzy, eat, sleep, happy, sad, angry) — Mixamo FBX → VRM-retargeted GLB pipeline complete |
 | Animation controller | 🔴 Critical | No priority queue, no crossfade, no animation state machine |
 | Animation catalog | 🔴 Critical | 10 trigger animations (idle, drag, throw, land, dizzy, eat, sleep, happy, sad, angry) not wired |
 | VRM blend shape controller | 🔴 Critical | No integration with `VRMExpressionManager` for facial expressions |
@@ -62,7 +62,7 @@ By the end of this stage, Noah will blink, breathe (idle), react to being dragge
 | Gap | Impact | Resolution |
 |-----|--------|------------|
 | No animation files exist | Cannot test or develop animation system | Use procedural/generated animations for development; source real animations from Mixamo, VRM marketplace, or Blender |
-| VRM animations may require VRM-specific format | Standard GLB animations may not map to VRM bones correctly | Use `VRMAnimationLoaderPlugin` or convert via Blender; fall back to procedural animations |
+| VRM animations may require VRM-specific format | Standard GLB animations may not map to VRM bones correctly | ✅ Mixamo FBX → Blender retargeting → GLB pipeline implemented (`scripts/blender/convert_mixamo_to_glb.py`); fall back to procedural animations |
 | Placeholder avatar has no skeleton | Cannot use `AnimationMixer` with placeholder | Implement procedural animation (floating, bobbing, tilting) using direct `Object3D` manipulation |
 | 16 emotions need body pose mapping | Some emotions differ only subtly in expression | Define tiered presets — 5 primary emotions get distinct poses; 11 secondary emotions share with intensity variation |
 
@@ -77,10 +77,10 @@ By the end of this stage, Noah will blink, breathe (idle), react to being dragge
 **Tasks:**
 1. Audit `assets/animations/` and confirm it is empty
 2. Determine animation source strategy:
-   - **Option A:** Download Mixamo animations as FBX, convert to GLB via Blender (free, large library)
+   - **Option A:** Download Mixamo animations as FBX, convert to GLB via Blender (free, large library) ✅ **IMPLEMENTED**
    - **Option B:** Create simple procedural animations in Blender (full control, time-intensive)
    - **Option C:** Use VRM marketplace animations (VRM-native, may need licensing)
-   - **Recommendation:** Option A (Mixamo) for body animations + Option C (VRM marketplace) for facial expressions
+   - **Recommendation:** Option A (Mixamo) for body animations + procedural fallback for facial expressions
 3. Create `scripts/blender/convert_animations.py` — batch converter:
    - Import FBX animation
    - Retarget to Noah's armature
@@ -98,16 +98,16 @@ By the end of this stage, Noah will blink, breathe (idle), react to being dragge
 
    | Animation | Source Strategy | Priority |
    |-----------|----------------|----------|
-   | `idle` | Mixamo "Idle" or VRM idle, fallback: procedural breathing | 🔴 Critical |
-   | `drag` | Procedural (tilt in drag direction) | 🟡 High |
-   | `throw` | Mixamo "Fall" or "Flip", fallback: procedural spin | 🟡 High |
-   | `land` | Mixamo "Land Soft", fallback: procedural bounce | 🟡 High |
-   | `dizzy` | Mixamo "Dizzy", fallback: procedural wobble | 🟢 Medium |
-   | `eat` | Mixamo "Eating", fallback: procedural hand-to-mouth | 🟢 Medium |
-   | `sleep` | Mixamo "Sleeping" or "Sit", fallback: procedural slump | 🟢 Medium |
-   | `happy` | Mixamo "Dance" or "Celebrate", fallback: procedural bounce | 🟢 Medium |
-   | `sad` | Mixamo "Sad" or "Cry", fallback: procedural droop | 🟢 Medium |
-   | `angry` | Mixamo "Angry" or "Punch", fallback: procedural shake | 🟢 Medium |
+   | `idle` | Mixamo "Idle" → GLB ✅ | 🔴 Critical |
+   | `drag` | Mixamo "Drag" → GLB ✅ | 🟡 High |
+   | `throw` | Mixamo "Throw" → GLB ✅ | 🟡 High |
+   | `land` | Mixamo "Land" → GLB ✅ | 🟡 High |
+   | `dizzy` | Mixamo "Dizzy" → GLB ✅ | 🟢 Medium |
+   | `eat` | Mixamo "Eat" → GLB ✅ | 🟢 Medium |
+   | `sleep` | Mixamo "Sleep" → GLB ✅ | 🟢 Medium |
+   | `happy` | Mixamo "Happy" → GLB ✅ | 🟢 Medium |
+   | `sad` | Mixamo "Sad" → GLB ✅ | 🟢 Medium |
+   | `angry` | Mixamo "Angry" → GLB ✅ | 🟢 Medium |
 
 6. Update `copy-assets` in `package.json` to include `assets/animations/`:
 

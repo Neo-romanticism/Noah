@@ -5,7 +5,7 @@
 ## Planned Features
 
 ### Core
-- [ ] **Avatar Rendering** — Load and display VRM model with Three.js
+- [x] **Avatar Rendering** — Load and display VRM/GLB model with Three.js (`GLTFLoader` + `@pixiv/three-vrm`)
 - [ ] **Animation System** — Play animations (idle, drag, throw, dizzy, etc.)
 - [ ] **Emotional State Engine** — 16 emotions driven by needs and interactions
 - [ ] **Think Loop** — Background processing cycle for autonomous behavior

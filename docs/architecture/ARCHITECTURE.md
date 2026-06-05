@@ -94,9 +94,9 @@ The [`room.ts`](src/renderer/room.ts) module is designed to support two modes:
 | Mode | Source | When |
 |------|--------|------|
 | **Procedural** | Three.js primitives (PlaneGeometry) — **임시 메쉬** | Now (Stage 4a) |
-| **File‑loaded** | FBX / GLTF model | Future (Stage 5a+) |
+| **File‑loaded** | GLB / VRM model | ✅ Complete (Stage 5b) |
 
-> ⚠️ 현재 방(Floor, Walls)은 모두 **임시(placeholder) 메쉬**입니다. Three.js 기본 지오메트리(PlaneGeometry)로 공간 배치와 조명/그림자 파이프라인을 검증하며, Stage 5+ 에서 실제 FBX/GLTF 룸 모델로 교체 예정입니다.
+> ⚠️ 현재 방(Floor, Walls)은 모두 **임시(placeholder) 메쉬**입니다. Three.js 기본 지오메트리(PlaneGeometry)로 공간 배치와 조명/그림자 파이프라인을 검증하며, 향후 실제 GLB/VRM 룸 모델로 교체 예정입니다.
 
 This is achieved through the [`IRoom`](src/renderer/room.ts:42) interface:
 
@@ -116,6 +116,7 @@ export const room: IRoom = createProceduralRoom();
 
 // Future (file-loaded):
 // export const room: IRoom = await loadRoomFromFile('models/room.glb');
+// Avatar model already uses GLB/VRM: loadAvatar({ modelPath: './models/noah.glb' })
 ```
 
 Consumers use `room.group` (not `room` directly), so the swap is transparent.

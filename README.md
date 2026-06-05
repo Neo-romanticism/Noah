@@ -21,8 +21,8 @@ This is a clean rewrite. Previous experiments taught us what works; now we build
 |-------|-----------|
 | Runtime | Electron |
 | Renderer | Three.js |
-| Avatar | FBX (`.fbx`) — animations, models |
-| Loader | Three.js `FBXLoader` |
+| Avatar | VRM/GLB (`.glb`) — VRM model, animations |
+| Loader | Three.js `GLTFLoader` + `@pixiv/three-vrm` |
 | Language | TypeScript |
 | Build | webpack + tsc |
 
@@ -35,9 +35,9 @@ noah/
 │   ├── renderer/          # Three.js + UI renderer
 │   └── shared/            # Common types, constants, utilities
 ├── assets/
-│   ├── models/            # FBX avatar files
-│   ├── animations/        # FBX animation clips
-│   └── rooms/             # FBX room environments
+│   ├── models/            # VRM/GLB avatar files
+│   ├── animations/        # GLB animation clips
+│   └── rooms/             # GLB room environments
 ├── docs/                  # Technical documentation
 │   ├── architecture/
 │   ├── features/
@@ -88,13 +88,13 @@ npm run dev
 npm test
 ```
 
-**테스트 상태**: 276개 테스트 통과 (2026-05-28 기준)
+**테스트 상태**: 363개 테스트 통과 (2026-06-01 기준)
 
 ## 📋 구현 현황
 
 | 시스템 | 구현 상태 | 테스트 수 | 주요 메모 |
 |--------|----------|----------|----------|
-| **Core System** | ✅ 완료 | 276개 | 모든 기본 시스템 구현 완료 |
+| **Core System** | ✅ 완료 | 363개 | 모든 기본 시스템 구현 완료 |
 | **Interaction** | ✅ 완료 | - | 핵심 상호작용 로직 구현 완료 (입력 감지, 제스처 처리) |
 | **3D Rendering** | ✅ 완료 | - | Three.js 기반 렌더링 구현 |
 | **Metrics** | ✅ 완료 | - | CPU, RAM, 시스템 메트릭 연동 |

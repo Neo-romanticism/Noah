@@ -1,9 +1,16 @@
-# Stage 5a: FBX Loading System
+# Stage 5a: FBX Loading System (DEPRECATED — Migrated to Stage 5b)
 
-> **Scope**: Implement FBX avatar loading with success/failure handling
+> **⚠️ DEPRECATED**: This document describes the original FBX-based avatar loading system.
+> FBX → GLB/VRM migration was completed in **Stage 5b** (commit `cc2e1a7`).
+> Current avatar uses `GLTFLoader` + `@pixiv/three-vrm` with `noah.glb`.
+> This document is preserved for historical reference only.
+
+---
+
+> **Original Scope**: Implement FBX avatar loading with success/failure handling
 > **Rule**: Complete all acceptance criteria before proceeding
 
-## Goal
+## Goal (Original)
 Load FBX avatar model with proper success/failure handling, ensuring:
 - Avatar is displayed correctly when loading succeeds
 - **Placeholder (임시 메쉬)** is maintained with error visualization when loading fails
@@ -12,26 +19,26 @@ Load FBX avatar model with proper success/failure handling, ensuring:
 
 ## Acceptance Criteria
 
-- [ ] FBX loader implemented with dynamic loading
-- [ ] Success: Avatar displayed with enhanced materials
-- [ ] Failure: Placeholder maintained with visual feedback
-- [ ] Error logging with detailed diagnostics
-- [ ] Material enhancement system working
-- [ ] `npm test` ≥ 236 passed (current: 252 passed, 5 failed)
-- [ ] `npm run build` clean
-- [ ] Avatar scaling properly configured
-- [ ] Shadow casting enabled
-- [ ] Embedded lights removed from model
+- [x] ~~FBX loader implemented with dynamic loading~~ → Replaced by GLTFLoader + VRMLoaderPlugin
+- [x] ~~Success: Avatar displayed with enhanced materials~~ → Preserved in GLB pipeline
+- [x] ~~Failure: Placeholder maintained with visual feedback~~ → Preserved in GLB pipeline
+- [x] ~~Error logging with detailed diagnostics~~ → Preserved
+- [x] ~~Material enhancement system working~~ → Preserved (classifyMaterial + enhanceMaterial)
+- [x] ~~`npm test` ≥ 236 passed~~ → 363 passed (Stage 5b complete)
+- [x] ~~`npm run build` clean~~ → Preserved
+- [x] ~~Avatar scaling properly configured~~ → Preserved
+- [x] ~~Shadow casting enabled~~ → Preserved
+- [x] ~~Embedded lights removed from model~~ → Preserved
 
 ## Current Implementation Status ✅
 
-### Working Features:
-- **Dynamic FBX Loader**: Uses dynamic import to avoid bundling issues
-- **Material Enhancement**: Converts materials to MeshPhysicalMaterial with part-specific presets
-- **Shadow Support**: All meshes cast and receive shadows
-- **Error Handling**: Graceful fallback to placeholder avatar
-- **Scene Cleanup**: Removes embedded lights and unwanted geometry
-- **Animation Support**: Handles FBX animations with mixer
+### Working Features (Migrated to GLB/VRM):
+- **~~Dynamic FBX Loader~~** → `GLTFLoader` + `VRMLoaderPlugin` for VRM/GLB
+- **Material Enhancement**: Converts materials to MeshPhysicalMaterial with part-specific presets (preserved)
+- **Shadow Support**: All meshes cast and receive shadows (preserved)
+- **Error Handling**: Graceful fallback to placeholder avatar (preserved)
+- **Scene Cleanup**: Removes embedded lights and unwanted geometry (preserved)
+- **Animation Support**: Handles GLB animations with `AnimationMixer` (VRM-compatible)
 
 ### Material Enhancement Categories:
 - **Skin**: Transmission + thickness for subsurface scattering
@@ -120,17 +127,16 @@ function classifyMaterial(name: string, matName: string, hasTexture: boolean):
 ## Configuration
 
 ### Avatar Settings:
-- **Model Path**: `./models/noah.fbx`
+- **Model Path**: `./models/noah.glb` (GLB/VRM format, textures embedded)
 - **Scale**: 0.3 (empirical value for proper sizing)
 - **Position**: `(0, 0, 0.5)` (slightly forward in room)
 - **Shadow**: Enabled on all meshes
 - **Materials**: Enhanced with physical rendering
 
 ### Scaling Notes:
-The FBX model uses cm units (UnitScaleFactor=100), but empirical testing shows:
-- Theoretical scale: 0.01 (cm→m conversion)
-- Actual working scale: 0.3 (compensates for model scaling issues)
-- TODO: Re-examine once true FBX unit setup is verified
+The GLB model uses meter units. Scale is applied via `config.scale` in `loadAvatar()`.
+- Previous FBX empirical scale: 0.3 (cm→m conversion + model scaling)
+- GLB scale: determined per-model via Blender export settings
 
 ## Implementation Details
 
