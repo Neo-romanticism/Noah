@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { NoahState, SystemMetrics } from '../shared/types/index.js';
+import type { Emotion, NoahState, SystemMetrics } from '../shared/types/index.js';
 import { scene, camera, renderer } from './scene.js';
 import { room } from './room.js';
 import { createMetricsDisplay } from './metrics.js';
@@ -10,6 +10,7 @@ import { deriveWeather } from '../shared/utils/sensory.js';
 import { createInteractionManager } from './interaction/index.js';
 import { loadAvatar, createPlaceholderAvatar, type IAvatar } from './avatar.js';
 import { AnimationSystem } from './animation/index.js';
+import { createDialogBubble } from './dialog-bubble.js';
 import type { SystemWeather } from '../shared/types/index.js';
 
 const container = document.getElementById('scene-container');
@@ -78,16 +79,24 @@ let animationSystem: AnimationSystem;
   interaction.setEventCallbacks({
     onDragStart() {
       animationSystem.playInteraction('drag');
+      noah.sendInteraction({ type: 'drag', timestamp: Date.now() });
     },
     onDragEnd(velocity) {
       const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
       animationSystem.playTrigger(speed > 5 ? 'throw' : 'land');
+      noah.sendInteraction({
+        type: 'throw',
+        velocity: { x: velocity.x, y: velocity.y },
+        timestamp: Date.now(),
+      });
     },
     onPetStart() {
       animationSystem.playInteraction('pet');
+      noah.sendInteraction({ type: 'pet', timestamp: Date.now() });
     },
     onClick() {
       animationSystem.playInteraction('click');
+      noah.sendInteraction({ type: 'click', timestamp: Date.now() });
     },
   });
 
@@ -104,8 +113,34 @@ noah
   .then((state: NoahState) => console.log('Initial NoahState:', state))
   .catch((err: unknown) => console.error('Failed to getState:', err));
 
+// ── Dialog Bubble ─────────────────────────────────────────────────
+const dialogBubble = createDialogBubble();
+
 noah.onStateUpdate((state: NoahState) => {
-  console.log('NoahState update:', state);
+  if (animationSystem && state.emotion) {
+    animationSystem.setEmotion(state.emotion);
+  }
+  if (dialogBubble) {
+    dialogBubble.showEmotion(state.emotion);
+  }
+});
+
+// ── Dialog/Thought IPC ──────────────────────────────────────────
+noah.onDialog((text: string) => {
+  console.log('[Dialog]', text);
+  dialogBubble.show(text, 4000);
+});
+
+noah.onAutonomousAction((action) => {
+  console.log('[AutonomousAction]', action);
+  if (action.type === 'animation' && animationSystem) {
+    if (action.payload === 'sleep') {
+      animationSystem.playInteraction('sleep');
+    }
+  }
+  if (action.type === 'expression' && animationSystem) {
+    animationSystem.setEmotion(action.payload as Emotion);
+  }
 });
 
 let currentWeather: SystemWeather = 'sunny';

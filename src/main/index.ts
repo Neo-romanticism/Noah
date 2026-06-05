@@ -11,6 +11,10 @@ import { SessionTracker } from './session';
 import { SystemPoller } from './system/poller.js';
 import { buildMemoryContext, resolveEmotion, clampStat } from '../shared/utils/index.js';
 import { deriveWeather } from '../shared/utils/sensory.js';
+import { OnlineNeedsDecay, CooldownManager, ThoughtCycle } from './emotion/index.js';
+import { applyInteraction } from './emotion/interaction-effects.js';
+import { resolveEmotion as mainResolveEmotion } from './emotion/resolver.js';
+import { sendDialog, sendAutonomousAction } from './ipc/dialog.js';
 
 
 interface AppServices {
@@ -19,9 +23,13 @@ interface AppServices {
   autoSave: AutoSaveController;
   sessionTracker: SessionTracker;
   systemPoller: SystemPoller;
+  onlineNeeds: OnlineNeedsDecay;
+  cooldowns: CooldownManager;
+  thoughtCycle: ThoughtCycle;
 }
 
 let services: AppServices | null = null;
+let needsInterval: ReturnType<typeof setInterval> | null = null;
 
 
 const WINDOW_CONFIG = {
@@ -265,31 +273,97 @@ const bootstrap = async (): Promise<void> => {
 
   systemPoller.start();
 
-  // Store references for reinitialization on activate
-  services = { stateManager, memoryStore, autoSave, sessionTracker, systemPoller };
+  // 9. Initialize Emotion Engine (Stage 6)
+  const onlineNeeds = new OnlineNeedsDecay();
+  const cooldowns = new CooldownManager();
+  const thoughtCycle = new ThoughtCycle();
 
-  // 9. Register IPC channels
+  // 9a. Needs decay timer (1 second interval)
+  needsInterval = setInterval(() => {
+    const state = stateManager.getState();
+    const delta = onlineNeeds.tick(state, false); // isActive = false for now
+    if (Object.keys(delta).length > 0) {
+      stateManager.modify((draft) => {
+        const merged = { ...draft, ...delta };
+        return {
+          ...merged,
+          emotion: mainResolveEmotion(merged),
+        };
+      });
+    }
+  }, 1000);
+
+  // 9b. Thought Cycle
+  thoughtCycle.start(stateManager.getState(), {
+    onThink: (thought) => {
+      console.log('[Thought]', thought.text);
+    },
+    onAction: (action) => {
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length > 0) {
+        const win = wins[0]!;
+        if (action.type === 'dialog') {
+          sendDialog(win, action.payload);
+        } else if (action.type === 'animation') {
+          sendAutonomousAction(win, action);
+        } else if (action.type === 'expression') {
+          sendAutonomousAction(win, action);
+        }
+      }
+    },
+  });
+
+  // Store references for reinitialization on activate
+  services = { stateManager, memoryStore, autoSave, sessionTracker, systemPoller, onlineNeeds, cooldowns, thoughtCycle };
+
+  // 10. Register IPC channels (with cooldown + interaction effects)
   registerIpc({
     getState: () => stateManager.getState(),
     onAction: (event) => {
-      stateManager.applyInteraction(event);
+      // Cooldown check
+      if (!cooldowns.canExecute(event.type)) {
+        console.log(`[Cooldown] ${event.type} ignored (on cooldown)`);
+        return;
+      }
+      cooldowns.record(event.type);
       sessionTracker.onUserActivity();
+
+      // Apply interaction effects
+      const state = stateManager.getState();
+      const velocity = event.velocity
+        ? Math.sqrt(event.velocity.x ** 2 + event.velocity.y ** 2)
+        : undefined;
+      const delta = applyInteraction(state, event.type, { velocity });
+
+      if (Object.keys(delta).length > 0) {
+        stateManager.modify((draft) => {
+          const merged = { ...draft, ...delta, lastSeen: Date.now() };
+          return {
+            ...merged,
+            emotion: mainResolveEmotion(merged),
+          };
+        });
+      } else {
+        stateManager.applyInteraction(event);
+      }
     },
     sendSystemMetrics: (wc, metrics) => {
       wc.send('system:metrics', metrics);
     },
   });
 
-  // 10. Create window
+  // 11. Create window
   createWindow(stateManager);
 
-  // 11. Graceful shutdown handlers
+  // 12. Graceful shutdown handlers
   app.on('before-quit', () => {
     autoSave.saveNow();
     memoryStore.save();
   });
 
   app.on('will-quit', () => {
+    if (needsInterval) clearInterval(needsInterval);
+    thoughtCycle.stop();
     autoSave.stop();
     sessionTracker.stop();
     systemPoller.stop();
