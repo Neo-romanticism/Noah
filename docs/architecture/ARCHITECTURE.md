@@ -58,6 +58,7 @@ src/
 | `state:request` | Renderer → Main | Request current state |
 | `action:interaction` | Renderer → Main | User interaction events |
 | `system:metrics` | Main → Renderer | System metric updates |
+| `system:metrics:window` | Main → Renderer | Active foreground window coordinates/bounds |
 
 ## State Management
 

@@ -808,29 +808,50 @@ thoughtCycle.start(stateManager.getState(), {
 
 ## 체크리스트
 
-- [ ] Phase 1.1: Emotion Resolver (shared wrapper) 구현 + 테스트
-- [ ] Phase 1.2: Online Needs Decay 구현 + 테스트
-- [ ] Phase 1.3: Interaction Effects 구현 (기존 constants 통합) + 테스트
-- [ ] Phase 1.4: Cooldown Manager 구현 + 테스트
-- [ ] Phase 2.1: Thought Cycle 구현 + 테스트
-- [ ] Phase 3.1: Emotion → Animation bridge 연결 (기존 setEmotion API 활용)
-- [ ] Phase 3.2: Interaction → Main bridge 연결 (기존 sendInteraction IPC 활용)
-- [ ] Phase 3.3: Dialog Bubble 구현 (DOM overlay)
-- [ ] Phase 4.1: Preload API 확장 (onDialog, onAutonomousAction)
-- [ ] Phase 4.2: Dialog/Thought IPC handler 구현
-- [ ] Phase 5.1: main/index.ts EmotionEngine 초기화 (timer + handler + thought cycle)
-- [ ] Phase 6: 통합 테스트 (`npm run dev` + `npm test`)
+> **✅ 스테이지 완료** (완료일: 2026-06-07, `npm test` 479 passed)
+
+- [x] Phase 1.1: Emotion Resolver (shared wrapper) 구현 + 테스트 — [`src/main/emotion/resolver.ts`](../src/main/emotion/resolver.ts)
+- [x] Phase 1.2: Online Needs Decay 구현 + 테스트 — [`src/main/emotion/needs.ts`](../src/main/emotion/needs.ts)
+- [x] Phase 1.3: Interaction Effects 구현 (기존 constants 통합) + 테스트 — [`src/main/emotion/interaction-effects.ts`](../src/main/emotion/interaction-effects.ts)
+- [x] Phase 1.4: Cooldown Manager 구현 + 테스트 — [`src/main/emotion/cooldowns.ts`](../src/main/emotion/cooldowns.ts)
+- [x] Phase 2.1: Thought Cycle 구현 + 테스트 — [`src/main/emotion/thought-cycle.ts`](../src/main/emotion/thought-cycle.ts)
+- [x] Phase 3.1: Emotion → Animation bridge 연결 (기존 setEmotion API 활용)
+- [x] Phase 3.2: Interaction → Main bridge 연결 (기존 sendInteraction IPC 활용)
+- [x] Phase 3.3: Dialog Bubble 구현 (DOM overlay) — [`src/renderer/dialog-bubble.ts`](../src/renderer/dialog-bubble.ts)
+- [x] Phase 4.1: Preload API 확장 (onDialog, onAutonomousAction)
+- [x] Phase 4.2: Dialog/Thought IPC handler 구현 — [`src/main/ipc/dialog.ts`](../src/main/ipc/dialog.ts)
+- [x] Phase 5.1: main/index.ts EmotionEngine 초기화 (timer + handler + thought cycle)
+- [x] Phase 6: 통합 테스트 (`npm run dev` + `npm test`)
+
+**고급 기능 (Stage 06 후반 추가 완료)**
+- [x] Affection 온라인 decay (AFFECTION_DECAY_RATE)
+- [x] Hunger personality shift (4단계: normal/peckish/irritable/extremely_irritable) — [`src/main/emotion/hunger-personality.ts`](../src/main/emotion/hunger-personality.ts)
+- [x] Fatigue → auto sleep trigger (fatigue > 80)
+- [x] Discomfort (waste) mechanic (10분 간격, 최대 3개) — [`src/main/emotion/discomfort.ts`](../src/main/emotion/discomfort.ts)
+- [x] Ignore detection engine (1분/5분/15분/1시간/4시간+) — [`src/main/emotion/ignore-detection.ts`](../src/main/emotion/ignore-detection.ts)
+- [x] Trauma special rules (trauma >= 50 시 passive decay 중단)
+- [x] Expression override (trauma mask / submission disguise) — [`src/main/emotion/expression-override.ts`](../src/main/emotion/expression-override.ts)
+- [x] Absence return reaction (기상 시 dialog)
 
 ---
 
-## 다음 스테이지 (Stage 07 예고)
+## 알려진 미완성 항목 → Stage 07로 이관
 
-| 후보 | 설명 |
-|------|------|
-| **Memory-Driven Behavior** | Noah가 과거 기억을 현재 행동에 반영 |
-| **Sleep/Dream System** | 수면 상태, 꿈 생성, 기상 조건 |
-| **Food Economy** | Noah Coin, 자원 채굴, 상점 |
-| **Screen Interaction** | Noah가 실제로 화면 클릭/드래그 |
+| 항목 | 이슈 | 내용 |
+|------|------|------|
+| 상호작용 메모리 유실 버그 | [ISSUE-020](../docs/issues/진행예정/ISSUE-020_상호작용_실행_시_기억_유실_버그.md) | `applyInteraction()` 미호출 → MemoryStore 로그 누락 |
+| 클릭 어뷰즈 학대 이벤트 유실 버그 | [ISSUE-021](../docs/issues/진행예정/ISSUE-021_연속_타격_시_학대_이벤트_유실_버그.md) | clickAbuse 시 이벤트 뮤트 → `beating` IPC 미전송 |
+| 오염물(Discomfort) 렌더러 미구현 | [ISSUE-023](../docs/issues/진행예정/ISSUE-023_디지털_글리치_오염_체체_가시화_및_클릭_청소.md) | discomfortCount가 화면에 표시 안 됨, 클린 상호작용 없음 |
+| 사료 종류 시스템 미구현 | [Midterm Q2](../docs/guides/Midterm_Alignment_Check.md) | feed 고정값 → Kibble/Premium/Luxury 3종으로 분화 필요 |
+| OS 활동 감지 시 자동 기상 미구현 | [ISSUE-022](../docs/issues/진행예정/ISSUE-022_사용자_OS_활동_재개_시_동적_기상_연동.md) | 수면 중 사용자 복귀 시 자동 깨어남 없음 |
+
+---
+
+## 다음 스테이지 (Stage 07)
+
+→ [`plans/stage-07-interaction-completion.md`](stage-07-interaction-completion.md)
+
+Stage 07은 Stage 06에서 메인 프로세스 로직 위주로 완성된 감정/상호작용 엔진을 **렌더러 시각화 완성 + 버그 수정 + API 고도화**로 마무리하는 스테이지입니다.
 
 ---
 
