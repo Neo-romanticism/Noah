@@ -688,8 +688,8 @@ export async function loadAvatar(
     animationController,
     vrm: vrm || undefined,
     update(delta) {
+      // Only vrm.update() here — mixer.update() is called by AnimationSystem.controller.update()
       if (vrm && typeof vrm.update === 'function') vrm.update(delta);
-      if (mixer) mixer.update(delta);
       animationController.update(delta);
     },
     dispose() {

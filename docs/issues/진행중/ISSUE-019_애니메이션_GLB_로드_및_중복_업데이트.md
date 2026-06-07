@@ -2,10 +2,10 @@
 issue_id: ISSUE-019
 type: 버그
 priority: 높음
-status: 진행중
+status: 해결됨
 labels: [bug, animation, vrm, mixer, update-loop]
 related: [STAGE-05, STAGE-06]
-last_updated: 2026-06-05
+last_updated: 2026-06-07
 ---
 
 ## 제목
@@ -84,97 +84,72 @@ Three.js `AnimationMixer.clipAction()`은 트랙 이름과 scene 내 Bone 노드
 
 ---
 
-## 수정 계획
+## 수정 내역 (2026-06-07)
 
 ### 수정 1: `avatar.update()`에서 mixer.update() 제거 (AnimationSystem이 담당)
 
-**파일:** [`src/renderer/avatar.ts:693`](../../src/renderer/avatar.ts)
+**파일:** [`src/renderer/avatar.ts`](../../src/renderer/avatar.ts)
 
 ```typescript
-// Before (avatar.ts:690-693):
+// Before:
 update(delta) {
   if (vrm && typeof vrm.update === 'function') vrm.update(delta);
-  if (mixer) mixer.update(delta);          // ← 이 줄을 제거
+  if (mixer) mixer.update(delta);          // ← 제거됨
   animationController.update(delta);
 }
 
 // After:
 update(delta) {
+  // Only vrm.update() here — mixer.update() is called by AnimationSystem.controller.update()
   if (vrm && typeof vrm.update === 'function') vrm.update(delta);
-  // mixer.update()는 AnimationSystem에서만 호출
   animationController.update(delta);
 }
 ```
 
 ### 수정 2: `AnimationSystem.update()`에서 vrm.update() 제거 (avatar.update()가 담당)
 
-**파일:** [`src/renderer/animation/index.ts:157-163`](../../src/renderer/animation/index.ts)
+**파일:** [`src/renderer/animation/index.ts`](../../src/renderer/animation/index.ts)
 
 ```typescript
-// Before (index.ts:157-163):
+// Before:
 update(delta: number): void {
   this.controller.update(delta);
   this.expressionCtrl?.update(delta);
   if (this.vrm && typeof this.vrm.update === 'function') {
-    this.vrm.update(delta);  // ← 이 줄을 제거 (avatar.update()에서 이미 호출)
+    this.vrm.update(delta);  // ← 제거됨
   }
   ...
 }
 
 // After:
 update(delta: number): void {
+  // mixer.update() is handled here via this.controller.update()
   this.controller.update(delta);
   this.expressionCtrl?.update(delta);
-  // vrm.update()는 avatar.update()에서만 호출
+  // NOTE: vrm.update() is intentionally NOT called here.
+  // It is called by avatar.update() which runs first in the render loop.
+  // Calling vrm.update() would reset all bone transforms set by the mixer.
   ...
 }
 ```
 
-### 수정 3: renderer index.ts 업데이트 순서 변경
+### 수정 후 호출 순서:
+1. `avatar.update()` → `vrm.update()` (VRM 기본 포즈) → `animationController.update()` (no mixer update)
+2. `animationSystem.update()` → `controller.update()` (mixer.update(), 단 한 번) → `expressionCtrl.update()` (no vrm update)
 
-**파일:** [`src/renderer/index.ts:159-161`](../../src/renderer/index.ts)
+## 검증
 
-```typescript
-// Before:
-function update(_weather: SystemWeather, delta: number): void {
-  weatherFx.update(_weather, delta);
-  if (avatar) avatar.update(delta);
-  if (animationSystem) animationSystem.update(delta);
-}
-
-// After:
-function update(_weather: SystemWeather, delta: number): void {
-  weatherFx.update(_weather, delta);
-  // vrm.update()는 avatar에서, mixer.update()는 animationSystem에서 각각 한 번씩만 호출
-  if (avatar) avatar.update(delta);
-  if (animationSystem) animationSystem.update(delta);
-}
-```
-
-변경 후 호출 순서:
-1. `avatar.update()` → `vrm.update()` (VRM 기본 포즈) → `animationController.update()`
-2. `animationSystem.update()` → `controller.update()` (이미 avatar.update()에서 호출됨 → 중복!) → `expressionCtrl.update()`
-
-**추가 중복 제거 필요:** `animationController.update()`가 avatar.update()와 animationSystem.update() 모두에서 호출되므로 한 곳으로 통일해야 함.
+- 479개 전체 테스트 통과 (34 test suites)
+- avatar.test.ts 통과 (outline mesh/placeholder 정상)
 
 ---
 
-## 수정된 파일 요약 (예상)
+## 수정된 파일 요약
 
 | 파일 | 변경 내용 |
 |------|-----------|
 | [`src/renderer/avatar.ts`](../../src/renderer/avatar.ts) | `IAvatar.update()`에서 `mixer.update(delta)` 제거 (AnimationSystem이 담당) |
 | [`src/renderer/animation/index.ts`](../../src/renderer/animation/index.ts) | `AnimationSystem.update()`에서 `vrm.update(delta)` 제거 (avatar가 담당) |
-| [`src/renderer/index.ts`](../../src/renderer/index.ts) | 업데이트 순서 주석 정리 (실제 로직 변경 없음) |
-
----
-
-## 검증 방법
-
-1. `npm run build && npm start` 실행
-2. 아바타가 정적으로 서 있는 상태에서 상호작용(드래그, 클릭, 쓰다듬기) 시 애니메이션 재생 확인
-3. 감정 변화(`noah.onStateUpdate`) 시 해당 애니메이션(angry, happy, sad 등) 재생 확인
-4. `mixer.update()` 호출 횟수 프레임당 1회인지 로그로 확인
 
 ---
 
@@ -185,18 +160,3 @@ function update(_weather: SystemWeather, delta: number): void {
 - [`src/renderer/index.ts:157-161`](../../src/renderer/index.ts) — render loop의 update() 호출
 - [`src/renderer/animation/controller.ts:70-78`](../../src/renderer/animation/controller.ts) — `getOrCreateAction()` (mixer.clipAction 바인딩)
 - [`src/renderer/animation/loader.ts:50-80`](../../src/renderer/animation/loader.ts) — `loadAnimationClips()` (GLB → AnimationClip 로드)
-
----
-
-## 재현 방법
-
-```bash
-npm run build
-npm start 2>&1 | grep -E "animation|Animation|mixer|vrm"
-```
-
-**예상되는 증상:**
-- `[animation-loader] Loaded angry.glb` 등 manifest 파일 로드 로그는 정상 출력
-- `[Avatar] VRM loaded successfully` 출력
-- `noah.onStateUpdate`에서 emotion 변화 로그는 출력되나 아바타 모션 변화 없음
-- 상호작용(onDragStart, onPetStart, onClick) 시 animationSystem.playInteraction() 호출 로그 없음

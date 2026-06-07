@@ -146,9 +146,35 @@
 
 ---
 
+### Stage 6: Emotion Engine and Needs System — ✅ 완료
+
+**Phase 1-5 (기본 Emotion-Interaction Loop) — ✅ 완료**
+- [x] Phase 1.1: Emotion Resolver (shared wrapper) — [`src/main/emotion/resolver.ts`](src/main/emotion/resolver.ts)
+- [x] Phase 1.2: Online Needs Decay (hunger/fatigue/trauma/affection) — [`src/main/emotion/needs.ts`](src/main/emotion/needs.ts)
+- [x] Phase 1.3: Interaction Effects (drag/throw/pet/click/feed/clean/play) — [`src/main/emotion/interaction-effects.ts`](src/main/emotion/interaction-effects.ts)
+- [x] Phase 1.4: Cooldown Manager — [`src/main/emotion/cooldowns.ts`](src/main/emotion/cooldowns.ts)
+- [x] Phase 2.1: Thought Cycle (5s 주기 자율 사고/행동) — [`src/main/emotion/thought-cycle.ts`](src/main/emotion/thought-cycle.ts)
+- [x] Phase 3.1-3.2: Emotion→Animation / Interaction→Main bridge — [`src/renderer/index.ts`](src/renderer/index.ts)
+- [x] Phase 3.3: Dialog Bubble (DOM overlay) — [`src/renderer/dialog-bubble.ts`](src/renderer/dialog-bubble.ts)
+- [x] Phase 4.1-4.2: Dialog/Thought IPC — [`src/main/ipc/dialog.ts`](src/main/ipc/dialog.ts), [`src/main/preload.ts`](src/main/preload.ts)
+- [x] Phase 5.1: Main process init (timer+handler+thought cycle) — [`src/main/index.ts`](src/main/index.ts)
+- [x] Phase 6: Unit tests 71개 (9 test files) — `tests/main/emotion/*.test.ts`
+
+**고급 기능 — ✅ 모두 완료**
+- [x] Affection 온라인 decay (AFFECTION_DECAY_RATE) — [`src/main/emotion/needs.ts`](src/main/emotion/needs.ts)
+- [x] Hunger personality shift (4단계: normal/peckish/irritable/extremely_irritable) — [`src/main/emotion/hunger-personality.ts`](src/main/emotion/hunger-personality.ts)
+- [x] Fatigue → auto sleep trigger (fatigue > 80) — [`src/main/emotion/needs.ts`](src/main/emotion/needs.ts)
+- [x] Discomfort (waste) mechanic (10분 간격, 최대 3개, clean으로 제거) — [`src/main/emotion/discomfort.ts`](src/main/emotion/discomfort.ts)
+- [x] Ignore detection engine (1분/5분/15분/1시간/4시간+) — [`src/main/emotion/ignore-detection.ts`](src/main/emotion/ignore-detection.ts)
+- [x] Absence return reaction (기상 시 dialog) — [`src/main/index.ts`](src/main/index.ts)
+- [x] Trauma special rules (trauma >= 50 시 decay 중단, active healing 필요) — [`src/main/emotion/needs.ts`](src/main/emotion/needs.ts)
+- [x] Expression override (trauma mask / submission disguise) — [`src/main/emotion/expression-override.ts`](src/main/emotion/expression-override.ts)
+
+---
+
 ## 🗺️ Reference (Docs)
 - Stage 3 spec: `docs/guides/tasks/STAGE-03_System_Awareness_and_Sensory_Translation.md`
 - System Awareness implementation: `docs/features/System_Awareness.md`
 - Full roadmap: `docs/guides/Project_Implementation_Roadmap_Report.md`
 
-*Last updated: 2026-05-24*
+*Last updated: 2026-06-07*

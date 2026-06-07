@@ -15,6 +15,13 @@ import { OnlineNeedsDecay, CooldownManager, ThoughtCycle } from './emotion/index
 import { applyInteraction } from './emotion/interaction-effects.js';
 import { resolveEmotion as mainResolveEmotion } from './emotion/resolver.js';
 import { sendDialog, sendAutonomousAction } from './ipc/dialog.js';
+import { checkIgnore, createIgnoreState, resetIgnoreState } from './emotion/ignore-detection.js';
+import type { IgnoreState } from './emotion/ignore-detection.js';
+import { checkDiscomfort, createDiscomfortState } from './emotion/discomfort.js';
+import type { DiscomfortState } from './emotion/discomfort.js';
+import { evaluateOverride, applyOverride } from './emotion/expression-override.js';
+import type { OverrideState } from './emotion/expression-override.js';
+import type { Emotion } from '../shared/types/index.js';
 
 
 interface AppServices {
@@ -26,10 +33,15 @@ interface AppServices {
   onlineNeeds: OnlineNeedsDecay;
   cooldowns: CooldownManager;
   thoughtCycle: ThoughtCycle;
+  ignoreState: IgnoreState;
+  discomfortState: DiscomfortState;
+  currentOverride: OverrideState;
+  displayEmotion: Emotion;
 }
 
 let services: AppServices | null = null;
 let needsInterval: ReturnType<typeof setInterval> | null = null;
+let ignoreCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 
 const WINDOW_CONFIG = {
@@ -277,6 +289,10 @@ const bootstrap = async (): Promise<void> => {
   const onlineNeeds = new OnlineNeedsDecay();
   const cooldowns = new CooldownManager();
   const thoughtCycle = new ThoughtCycle();
+  let ignoreState = createIgnoreState();
+  let discomfortState = createDiscomfortState();
+  let currentOverride: OverrideState = null;
+  let displayEmotion: Emotion = 'happy';
 
   // 9a. Needs decay timer (1 second interval)
   needsInterval = setInterval(() => {
@@ -285,15 +301,110 @@ const bootstrap = async (): Promise<void> => {
     if (Object.keys(delta).length > 0) {
       stateManager.modify((draft) => {
         const merged = { ...draft, ...delta };
+
+        // Handle auto-sleep trigger from OnlineNeedsDecay
+        if ((delta as any).autoSleepTriggered) {
+          memoryStore.record({
+            type: 'slept',
+            severity: 2,
+            context: buildMemoryContext(merged as any),
+            description: 'Auto-sleep triggered by fatigue > 80',
+          });
+          const wins = BrowserWindow.getAllWindows();
+          if (wins.length > 0) {
+            sendAutonomousAction(wins[0]!, { type: 'animation', payload: 'sleep' });
+          }
+        }
+
+        // Handle waking up
+        if (delta.isSleeping === false) {
+          memoryStore.record({
+            type: 'woke',
+            severity: 1,
+            context: buildMemoryContext(merged as any),
+            description: 'Woke up after fatigue recovered',
+          });
+          const wins = BrowserWindow.getAllWindows();
+          if (wins.length > 0) {
+            sendDialog(wins[0]!, '...일어났다');
+          }
+        }
+
+        const trueEmotion = mainResolveEmotion(merged);
+        const evaluatedOverride = evaluateOverride(merged);
+        const displayed = applyOverride(trueEmotion, evaluatedOverride);
+        currentOverride = evaluatedOverride;
+        displayEmotion = displayed;
+
         return {
           ...merged,
-          emotion: mainResolveEmotion(merged),
+          emotion: displayed,
         };
       });
     }
   }, 1000);
 
-  // 9b. Thought Cycle
+  // 9b. Ignore detection check (every 10 seconds)
+  ignoreCheckInterval = setInterval(() => {
+    const state = stateManager.getState();
+
+    // Reset ignore timer if user has interacted recently
+    const now = Date.now();
+    if (now - state.lastSeen < 60_000) {
+      ignoreState = resetIgnoreState();
+    }
+
+    const result = checkIgnore(state, ignoreState);
+    if (result.action || Object.keys(result.stateModifiers).length > 0) {
+      stateManager.modify((draft) => {
+        const merged = { ...draft, ...result.stateModifiers };
+        const trueEmotion = mainResolveEmotion(merged);
+        const displayed = applyOverride(trueEmotion, currentOverride);
+        return {
+          ...merged,
+          emotion: displayed,
+        };
+      });
+    }
+    if (result.action) {
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length > 0) {
+        if (result.action.type === 'dialog') {
+          sendDialog(wins[0]!, result.action.payload);
+        } else if (result.action.type === 'emotion' || result.action.type === 'expression') {
+          sendAutonomousAction(wins[0]!, result.action);
+        }
+      }
+    }
+  }, 10_000);
+
+  // 9c. Discomfort check (every 60 seconds)
+  setInterval(() => {
+    const state = stateManager.getState();
+    const result = checkDiscomfort(state, discomfortState);
+    if (Object.keys(result.stateModifiers).length > 0) {
+      discomfortState = result.newDiscomfortState;
+      stateManager.modify((draft) => {
+        const merged = { ...draft, ...result.stateModifiers };
+        const trueEmotion = mainResolveEmotion(merged);
+        const displayed = applyOverride(trueEmotion, currentOverride);
+        return {
+          ...merged,
+          emotion: displayed,
+        };
+      });
+    }
+
+    // Notify about discomfort if >= 1
+    if (result.stateModifiers.discomfortCount && result.stateModifiers.discomfortCount >= 1) {
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length > 0) {
+        sendDialog(wins[0]!, '...');
+      }
+    }
+  }, 60_000);
+
+  // 9d. Thought Cycle
   thoughtCycle.start(stateManager.getState(), {
     onThink: (thought) => {
       console.log('[Thought]', thought.text);
@@ -314,12 +425,16 @@ const bootstrap = async (): Promise<void> => {
   });
 
   // Store references for reinitialization on activate
-  services = { stateManager, memoryStore, autoSave, sessionTracker, systemPoller, onlineNeeds, cooldowns, thoughtCycle };
+  services = { stateManager, memoryStore, autoSave, sessionTracker, systemPoller, onlineNeeds, cooldowns, thoughtCycle, ignoreState, discomfortState, currentOverride, displayEmotion };
 
-  // 10. Register IPC channels (with cooldown + interaction effects)
+  // 10. Register IPC channels (with cooldown + interaction effects + ignore reset)
   registerIpc({
     getState: () => stateManager.getState(),
     onAction: (event) => {
+      // Reset ignore state on any user interaction
+      ignoreState = resetIgnoreState();
+      discomfortState = createDiscomfortState();
+
       // Cooldown check
       if (!cooldowns.canExecute(event.type)) {
         console.log(`[Cooldown] ${event.type} ignored (on cooldown)`);
@@ -327,6 +442,15 @@ const bootstrap = async (): Promise<void> => {
       }
       cooldowns.record(event.type);
       sessionTracker.onUserActivity();
+
+      // Handle clean interaction — reset discomfort
+      if (event.type === 'clean') {
+        stateManager.modify((draft) => ({
+          ...draft,
+          discomfortCount: 0,
+          lastSeen: Date.now(),
+        }));
+      }
 
       // Apply interaction effects
       const state = stateManager.getState();
@@ -338,9 +462,14 @@ const bootstrap = async (): Promise<void> => {
       if (Object.keys(delta).length > 0) {
         stateManager.modify((draft) => {
           const merged = { ...draft, ...delta, lastSeen: Date.now() };
+          const trueEmotion = mainResolveEmotion(merged);
+          const evaluatedOverride = evaluateOverride(merged);
+          const displayed = applyOverride(trueEmotion, evaluatedOverride);
+          currentOverride = evaluatedOverride;
+          displayEmotion = displayed;
           return {
             ...merged,
-            emotion: mainResolveEmotion(merged),
+            emotion: displayed,
           };
         });
       } else {
@@ -363,6 +492,7 @@ const bootstrap = async (): Promise<void> => {
 
   app.on('will-quit', () => {
     if (needsInterval) clearInterval(needsInterval);
+    if (ignoreCheckInterval) clearInterval(ignoreCheckInterval);
     thoughtCycle.stop();
     autoSave.stop();
     sessionTracker.stop();

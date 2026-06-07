@@ -155,12 +155,13 @@ export class AnimationSystem {
   }
 
   update(delta: number): void {
+    // mixer.update() is handled here via this.controller.update()
     this.controller.update(delta);
     this.expressionCtrl?.update(delta);
 
-    if (this.vrm && typeof this.vrm.update === 'function') {
-      this.vrm.update(delta);
-    }
+    // NOTE: vrm.update() is intentionally NOT called here.
+    // It is called by avatar.update() which runs first in the render loop.
+    // Calling vrm.update() would reset all bone transforms set by the mixer.
 
     if (this.overrideState && this.overrideState.remaining > 0) {
       this.overrideState.remaining -= delta;

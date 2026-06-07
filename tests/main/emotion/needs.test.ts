@@ -47,8 +47,8 @@ describe('OnlineNeedsDecay', () => {
     expect(result.fatigue!).toBeGreaterThan(50);
   });
 
-  it('should decrease trauma slowly', () => {
-    const state = makeState({ trauma: 50 });
+  it('should decrease trauma slowly when trauma < 50', () => {
+    const state = makeState({ trauma: 40, hunger: 50, fatigue: 20 });
     const fastDecay = new OnlineNeedsDecay({
       hungerRate: 0,
       fatigueRate: 0,
@@ -57,7 +57,20 @@ describe('OnlineNeedsDecay', () => {
     (fastDecay as any).lastTick = Date.now() - 1000;
 
     const result = fastDecay.tick(state, false);
-    expect(result.trauma!).toBeLessThan(50);
+    expect(result.trauma!).toBeLessThan(40);
+  });
+
+  it('should NOT decrease trauma when trauma >= 50 (trauma special rule)', () => {
+    const state = makeState({ trauma: 50, hunger: 50, fatigue: 20 });
+    const fastDecay = new OnlineNeedsDecay({
+      hungerRate: 0,
+      fatigueRate: 0,
+      traumaDecayRate: 10,
+    });
+    (fastDecay as any).lastTick = Date.now() - 1000;
+
+    const result = fastDecay.tick(state, false);
+    expect(result.trauma).toBeUndefined();
   });
 
   it('should apply active multiplier when isActive is true', () => {
@@ -94,7 +107,7 @@ describe('OnlineNeedsDecay', () => {
   });
 
   it('should clamp stats', () => {
-    const state = makeState({ hunger: 99, fatigue: 99, trauma: 1 });
+    const state = makeState({ hunger: 99, fatigue: 50, trauma: 1 });
     const fastDecay = new OnlineNeedsDecay({
       hungerRate: 100,
       fatigueRate: 100,
